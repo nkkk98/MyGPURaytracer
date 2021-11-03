@@ -169,12 +169,32 @@ bool init() {
 }
 
 void mainLoop() {
+    double fps = 0;
+    double timebase = 0;
+    int frame = 0;
+
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+
+        frame++;
+        double time = glfwGetTime();
+
+        if (time - timebase > 1.0) {
+            fps = frame / (time - timebase);
+            timebase = time;
+            frame = 0;
+        }
+
         runCuda();
 
         string title = "CIS565 Path Tracer | " + utilityCore::convertIntToString(iteration) + " Iterations";
-        glfwSetWindowTitle(window, title.c_str());
+        
+        std::ostringstream ss;
+        ss << "  [";
+        ss.precision(1);
+        ss << std::fixed << fps;
+        ss << " fps] ";
+        glfwSetWindowTitle(window, (title+ss.str()).c_str());
 
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
         glBindTexture(GL_TEXTURE_2D, displayImage);

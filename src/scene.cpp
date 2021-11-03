@@ -4,6 +4,8 @@
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/string_cast.hpp>
 
+#define TINYOBJLOADER_IMPLEMENTATION
+#include "tiny_obj_loader.h"
 Scene::Scene(string filename) {
     cout << "Reading scene from " << filename << " ..." << endl;
     cout << " " << endl;
@@ -32,6 +34,108 @@ Scene::Scene(string filename) {
     }
 }
 
+int Scene::loadObj(string filename, Geom& newGeom) {
+
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+
+    std::string warn;
+    std::string err;
+
+    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename.c_str());
+
+    if (!warn.empty()) {
+        std::cout << warn << std::endl;
+    }
+
+    if (!err.empty()) {
+        return -1;
+        std::cerr << err << std::endl;
+    }
+
+    if (!ret) {
+        return -1;
+        exit(1);
+    }
+
+
+    float minX = 0.f;
+    float maxX = 0.f;
+    float minY = 0.f;
+    float maxY = 0.f;
+    float minZ = 0.f;
+    float maxZ = 0.f;
+
+    std::vector<Face> faces;
+    // Loop over shapes
+    for (size_t s = 0; s < shapes.size(); s++) {
+        // Loop over faces(polygon)
+        size_t index_offset = 0;
+        for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
+            int fv = shapes[s].mesh.num_face_vertices[f];
+            Face newTri;
+
+            // Loop over vertices in the face.
+            for (size_t v = 0; v < fv; v++) {
+                // access to vertex
+                Vertex newV;
+                tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
+                tinyobj::real_t vx = attrib.vertices[3 * idx.vertex_index + 0];
+                tinyobj::real_t vy = attrib.vertices[3 * idx.vertex_index + 1];
+                tinyobj::real_t vz = attrib.vertices[3 * idx.vertex_index + 2];
+                newV.position= glm::vec3(vx, vy, vz);
+                //glm::vec3 vertex = glm::vec3(vx, vy, vz);
+                //vertex = glm::round(vertex * 100.f) / 100.f;
+                if (idx.normal_index >= 0) {
+                    tinyobj::real_t nx = attrib.normals[3 * size_t(idx.normal_index) + 0];
+                    tinyobj::real_t ny = attrib.normals[3 * size_t(idx.normal_index) + 1];
+                    tinyobj::real_t nz = attrib.normals[3 * size_t(idx.normal_index) + 2];
+                    newV.normal = glm::vec3(nx,ny,nz);
+                }
+
+                // Check if `texcoord_index` is zero or positive. negative = no texcoord data
+                if (idx.texcoord_index >= 0) {
+                    tinyobj::real_t tx = attrib.texcoords[2 * size_t(idx.texcoord_index) + 0];
+                    tinyobj::real_t ty = attrib.texcoords[2 * size_t(idx.texcoord_index) + 1];
+                    newV.texcoord = glm::vec2(tx,ty);
+                }
+                // Optional: vertex colors
+                // tinyobj::real_t red   = attrib.colors[3*size_t(idx.vertex_index)+0];
+                // tinyobj::real_t green = attrib.colors[3*size_t(idx.vertex_index)+1];
+                // tinyobj::real_t blue  = attrib.colors[3*size_t(idx.vertex_index)+2];
+                if (v == 0) { newTri.v0 = newV.position; }
+                else if (v == 1) { newTri.v1 = newV.position; }
+                else if (v == 2) { newTri.v2 = newV.position; }
+
+                // update bounding box
+                if (vx < minX) { minX = vx; }
+                if (vy < minY) { minY = vy; }
+                if (vz < minZ) { minZ = vz; }
+                if (vx > maxX) { maxX = vx; }
+                if (vy > maxY) { maxY = vy; }
+                if (vz > maxZ) { maxZ = vz; }
+            }
+
+            index_offset += fv;
+
+            newTri.normal = glm::normalize(glm::cross(newTri.v2 - newTri.v0, newTri.v1 - newTri.v0));
+            newTri.normal = glm::round(newTri.normal * 100.f) / 100.f;
+
+            // per-face material
+            shapes[s].mesh.material_ids[f];
+            faces.push_back(newTri);
+        }
+    }
+    newGeom.minPos = glm::vec3(minX, minY, minZ);
+    newGeom.maxPos = glm::vec3(maxX, maxY, maxZ);
+    newGeom.faceSize = faces.size();
+    // std::cout << "triangle size: " << tris.size() << std::endl;
+    allFaces.push_back(faces);
+    geoms.push_back(newGeom);
+    return 1;
+}
+
 int Scene::loadGeom(string objectid) {
     int id = atoi(objectid.c_str());
     if (id != geoms.size()) {
@@ -42,6 +146,7 @@ int Scene::loadGeom(string objectid) {
         Geom newGeom;
         string line;
 
+        string objFileName;
         //load object type
         utilityCore::safeGetline(fp_in, line);
         if (!line.empty() && fp_in.good()) {
@@ -51,7 +156,21 @@ int Scene::loadGeom(string objectid) {
             } else if (strcmp(line.c_str(), "cube") == 0) {
                 cout << "Creating new cube..." << endl;
                 newGeom.type = CUBE;
+            }else if (strcmp(line.c_str(), "triangle") == 0) {
+                cout << "Creating new triangle..." << endl;
+                newGeom.type = TRIANGLE;
+            }else if (strcmp(line.c_str(), "obj") == 0) {
+                cout << "Creating new object..." << endl;
+                newGeom.type = OBJ;
+
+                //load object file name
+                utilityCore::safeGetline(fp_in, line);
+                if (!line.empty() && fp_in.good()) {
+                    objFileName = line.c_str();
+                    cout << "Loading object file: " << objFileName << endl;
+                }
             }
+
         }
 
         //link material
@@ -84,8 +203,16 @@ int Scene::loadGeom(string objectid) {
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
 
-        geoms.push_back(newGeom);
-        return 1;
+        if (newGeom.type == OBJ) {
+            return loadObj(objFileName, newGeom);
+        }
+        else {
+            newGeom.faceSize = 0;
+            geoms.push_back(newGeom);
+            std::vector<Face> faces;
+            allFaces.push_back(faces);
+            return 1;
+        }
     }
 }
 

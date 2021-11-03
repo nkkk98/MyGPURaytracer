@@ -10,11 +10,27 @@
 enum GeomType {
     SPHERE,
     CUBE,
+    TRIANGLE,
+    OBJ,
 };
 
 struct Ray {
     glm::vec3 origin;
     glm::vec3 direction;
+};
+
+struct Vertex {
+    glm::vec3 position;
+    glm::vec3 normal;
+    glm::vec4 color;
+    glm::vec2 texcoord;
+};
+
+struct Face {
+    glm::vec3 v0;
+    glm::vec3 v1;
+    glm::vec3 v2;
+    glm::vec3 normal;
 };
 
 struct Geom {
@@ -26,6 +42,12 @@ struct Geom {
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+
+    int faceSize;
+    Face* dev_faces;
+
+    glm::vec3 minPos;
+    glm::vec3 maxPos;
 };
 
 struct Material {

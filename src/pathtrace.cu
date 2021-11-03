@@ -27,10 +27,10 @@
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
 
-#define DEPTH_OF_FIELD 1
-#define CACHE_FIRST_BOUNCE 0
+#define DEPTH_OF_FIELD 0
+#define CACHE_FIRST_BOUNCE 1
 #define SORT_BY_MATERIAL 1
-#define ANTIALIASING 1
+#define ANTIALIASING 0
 
 void checkCUDAErrorFn(const char *msg, const char *file, int line) {
 #if ERRORCHECK
@@ -100,6 +100,17 @@ void pathtraceInit(Scene *scene) {
 
   	cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
 
+    for (int i = 0; i < scene->geoms.size(); i++)
+    {
+
+        Geom& geom = scene->geoms[i];
+        cudaMalloc(&geom.dev_faces, geom.faceSize * sizeof(Face));
+        cudaMemcpy(geom.dev_faces, (scene->allFaces[i]).data(), geom.faceSize * sizeof(Face), cudaMemcpyHostToDevice);
+    }
+
+    cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
+    cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
+
   	cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
   	cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
 
@@ -118,6 +129,13 @@ void pathtraceInit(Scene *scene) {
 }
 
 void pathtraceFree() {
+    if (hst_scene != NULL) {
+        for (int i = 0; i < hst_scene->geoms.size(); i++)
+        {
+            Geom& geom = hst_scene->geoms[i];
+            cudaFree(geom.dev_faces);
+        }
+    }
     cudaFree(dev_image);  // no-op if dev_image is null
   	cudaFree(dev_paths);
   	cudaFree(dev_geoms);
@@ -234,11 +252,12 @@ __global__ void computeIntersections(
 		glm::vec3 tmp_normal;
 
 		// naive parse through global geoms
-
+        //TODO BVH
 		for (int i = 0; i < geoms_size; i++)
 		{
 			Geom & geom = geoms[i];
-
+            int a = geom.faceSize;
+            int b = geom.type;
 			if (geom.type == CUBE)
 			{
 				t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
@@ -248,7 +267,10 @@ __global__ void computeIntersections(
 				t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
 			}
 			// TODO: add more intersection tests here... triangle? metaball? CSG?
-
+            else if (geom.type == OBJ)
+            {
+                t = objIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal);
+            }
 			// Compute the minimum t from the intersection tests to determine what
 			// scene geometry object was hit first.
 			if (t > 0.0f && t_min > t)
@@ -344,7 +366,7 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 	}
 }
 
-struct compareIntersections {
+struct sortByMaterial {
     __host__ __device__ bool operator() (const ShadeableIntersection& a, const ShadeableIntersection& b){
         return a.materialId > b.materialId;
     }
@@ -421,7 +443,9 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 #if CACHE_FIRST_BOUNCE && !ANTIALIASING && !DEPTH_OF_FIELD
         if (depth==0 && iter!=1) {
             thrust::copy(thrust::device, dev_first_intersections, dev_first_intersections+ num_paths_origin, dev_intersections);
-            if (sort_by_material)thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + num_paths_origin, dev_paths, compareIntersections());
+#if SORT_BY_MATERIAL
+                thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + num_paths_origin, dev_paths, sortByMaterial());
+#endif
         }
 #endif
             // clean shading chunks
@@ -442,7 +466,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
             if (iter == 1 && depth == 0)thrust::copy(thrust::device, dev_intersections, dev_intersections + num_paths_origin, dev_first_intersections);
 #endif
 #if SORT_BY_MATERIAL
-            thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + num_paths, dev_paths, compareIntersections());
+            thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + num_paths, dev_paths, sortByMaterial());
 #endif
 	depth++;
 

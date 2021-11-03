@@ -1,5 +1,4 @@
 #pragma once
-
 #include <vector>
 #include <sstream>
 #include <fstream>
@@ -16,10 +15,12 @@ private:
     int loadMaterial(string materialid);
     int loadGeom(string objectid);
     int loadCamera();
+    int loadObj(string filename, Geom& newGeom);
 public:
     Scene(string filename);
     ~Scene();
 
+    std::vector<std::vector<Face>> allFaces;
     std::vector<Geom> geoms;
     std::vector<Material> materials;
     RenderState state;
