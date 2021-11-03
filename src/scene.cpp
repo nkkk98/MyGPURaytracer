@@ -60,12 +60,12 @@ int Scene::loadObj(string filename, Geom& newGeom) {
     }
 
 
-    float minX = 0.f;
-    float maxX = 0.f;
-    float minY = 0.f;
-    float maxY = 0.f;
-    float minZ = 0.f;
-    float maxZ = 0.f;
+    float minX = FLT_MAX;
+    float maxX = FLT_MAX;
+    float minY = FLT_MAX;
+    float maxY = FLT_MIN;
+    float minZ = FLT_MIN;
+    float maxZ = FLT_MIN;
 
     std::vector<Face> faces;
     // Loop over shapes

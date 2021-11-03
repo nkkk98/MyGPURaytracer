@@ -172,7 +172,38 @@ __host__ __device__ float triangleIntersectionLocalTest(Geom obj, Ray r, glm::ve
     return -1;
 }
 
-__host__ __device__ float objIntersectionTest(Geom geom, Ray r,
+__host__ __device__ float boudingBoxIntersectionTest(Geom geom, Ray r)
+{
+    Ray q;
+    q.origin = multiplyMV(geom.inverseTransform, glm::vec4(r.origin, 1.0f));
+    q.direction = glm::normalize(multiplyMV(geom.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+    float tmin = -1e38f;
+    float tmax = 1e38f;
+
+    for (int xyz = 0; xyz < 3; ++xyz) {
+        float qdxyz = q.direction[xyz];
+        /*if (glm::abs(qdxyz) > 0.00001f)*/ {
+            float t1 = (geom.minPos[xyz] - q.origin[xyz]) / qdxyz;
+            float t2 = (geom.maxPos[xyz] - q.origin[xyz]) / qdxyz;
+            float ta = glm::min(t1, t2);
+            float tb = glm::max(t1, t2);
+            if (ta > 0 && ta > tmin) {
+                tmin = ta;
+            }
+            if (tb < tmax) {
+                tmax = tb;
+            }
+        }
+    }
+
+    if (tmax >= tmin && tmax > 0) {
+        return true;
+    }
+    return false;
+}
+
+__host__ __device__ float objTriIntersectionTest(Geom geom, Ray r,
     glm::vec3& intersectionPoint, glm::vec3& normal) {
     float min_tri_t = FLT_MAX;
     glm::vec3 tmp_tri_intersect;

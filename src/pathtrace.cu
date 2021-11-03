@@ -31,6 +31,7 @@
 #define CACHE_FIRST_BOUNCE 1
 #define SORT_BY_MATERIAL 1
 #define ANTIALIASING 0
+#define BOUNDING_BOX 1
 
 void checkCUDAErrorFn(const char *msg, const char *file, int line) {
 #if ERRORCHECK
@@ -269,7 +270,13 @@ __global__ void computeIntersections(
 			// TODO: add more intersection tests here... triangle? metaball? CSG?
             else if (geom.type == OBJ)
             {
-                t = objIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal);
+#if BOUNDING_BOX
+                if (boudingBoxIntersectionTest(geom, pathSegment.ray)) {
+                    t = objTriIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal);
+                }
+                else t = -1;
+#endif
+                t = objTriIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal);
             }
 			// Compute the minimum t from the intersection tests to determine what
 			// scene geometry object was hit first.
