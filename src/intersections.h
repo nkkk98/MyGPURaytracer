@@ -143,35 +143,6 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
     return glm::length(r.origin - intersectionPoint);
 }
 
-__host__ __device__ float triangleIntersectionLocalTest(Geom obj, Ray r, glm::vec3 p0, glm::vec3 p1, glm::vec3 p2,
-    glm::vec3& intersectionPoint, glm::vec3& normal)
-{
-    //1. Ray-plane intersection
-    glm::vec3 planeNormal = glm::normalize(glm::cross(p1 - p0, p2 - p0));
-    float t = glm::dot(planeNormal, (p0 - r.origin)) / glm::dot(planeNormal, r.direction);
-
-    if (t < 0)
-    {
-        return -1;
-    }
-
-    glm::vec3 p = r.origin + t * r.direction;	// Intersection point
-
-    //2. Barycentric test
-    float S = 0.5f * glm::length(glm::cross(p0 - p1, p0 - p2));
-    float s1 = 0.5f * glm::length(glm::cross(p - p1, p - p2)) / S;
-    float s2 = 0.5f * glm::length(glm::cross(p - p2, p - p0)) / S;
-    float s3 = 0.5f * glm::length(glm::cross(p - p0, p - p1)) / S;
-    float sum = s1 + s2 + s3;
-
-    if (s1 >= 0 && s1 <= 1 && s2 >= 0 && s2 <= 1 && s3 >= 0 && s3 <= 1 && abs(sum - 1.0f) < FLT_EPSILON) {
-        intersectionPoint = p;
-        normal = planeNormal;
-        return t;
-    }
-    return -1;
-}
-
 __host__ __device__ float boudingBoxIntersectionTest(Geom geom, Ray r)
 {
     Ray q;
@@ -203,6 +174,36 @@ __host__ __device__ float boudingBoxIntersectionTest(Geom geom, Ray r)
     return false;
 }
 
+__host__ __device__ float triangleIntersectionLocalTest(Geom obj, glm::vec3 ro, glm::vec3 rd, glm::vec3 v0, glm::vec3 v1, glm::vec3 v2,
+    glm::vec3& intersectionPoint, glm::vec3& normal)
+{
+
+    //1. Ray-plane intersection
+    glm::vec3 planeNormal = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+    float t = glm::dot(planeNormal, (v0 - ro)) / glm::dot(planeNormal, rd);
+
+    if (t < 0)
+    {
+        return -1;
+    }
+
+    glm::vec3 p = ro + t * rd;	// Intersection point
+
+    //2. Barycentric test
+    float S = 0.5f * glm::length(glm::cross(v0 - v1, v0 - v2));
+    float s1 = 0.5f * glm::length(glm::cross(p - v1, p - v2)) / S;
+    float s2 = 0.5f * glm::length(glm::cross(p - v2, p - v0)) / S;
+    float s3 = 0.5f * glm::length(glm::cross(p - v0, p - v1)) / S;
+    float sum = s1 + s2 + s3;
+
+    if (s1 >= 0 && s1 <= 1 && s2 >= 0 && s2 <= 1 && s3 >= 0 && s3 <= 1 && abs(sum - 1.0f) < FLT_EPSILON) {
+        intersectionPoint = p;
+        normal = planeNormal;
+        return t;
+    }
+    return -1;
+}
+
 __host__ __device__ float objTriIntersectionTest(Geom geom, Ray r,
     glm::vec3& intersectionPoint, glm::vec3& normal) {
     float min_tri_t = FLT_MAX;
@@ -210,21 +211,26 @@ __host__ __device__ float objTriIntersectionTest(Geom geom, Ray r,
     glm::vec3 tmp_tri_normal;
     glm::vec3 min_tri_intersect;
     glm::vec3 min_tri_normal;
-
+    bool intersect = false;
 
     // to object space
     glm::vec3 ro = multiplyMV(geom.inverseTransform, glm::vec4(r.origin, 1.0f));
     glm::vec3 rd = glm::normalize(multiplyMV(geom.inverseTransform, glm::vec4(r.direction, 0.0f)));
 
+    
     for (int j = 0; j < geom.faceSize; j++) {
         Face& tri = geom.dev_faces[j];
 
-
         // check if there is an intersection
-        bool did_isect = glm::intersectRayTriangle(ro, rd, tri.v0, tri.v1, tri.v2, tmp_tri_intersect);
-
-        if (did_isect) {
-            
+        //bool did_insect = glm::intersectRayTriangle(ro, rd, tri.v0, tri.v1, tri.v2, tmp_tri_intersect);
+        float tmp_tri_t=triangleIntersectionLocalTest(geom, ro, rd, tri.v0, tri.v1, tri.v2, tmp_tri_intersect, tmp_tri_normal);
+        if(tmp_tri_t>0 && tmp_tri_t < min_tri_t){
+            min_tri_intersect = tmp_tri_intersect;
+            min_tri_normal = tmp_tri_normal;
+            min_tri_t = tmp_tri_t;
+            intersect = true;
+        //if (did_insect) {
+            /*
             // to world space
             tmp_tri_normal = tri.normal;
             tmp_tri_intersect = glm::normalize(tmp_tri_intersect);
@@ -235,25 +241,25 @@ __host__ __device__ float objTriIntersectionTest(Geom geom, Ray r,
             // local to world
             tmp_tri_intersect = multiplyMV(geom.transform, glm::vec4(tmp_tri_intersect, 1.f));
             float tmp_tri_t = glm::length(r.origin - tmp_tri_intersect);
-            
-                /*
-            tmp_tri_normal = tri.normal;
-
-            tmp_tri_intersect = glm::normalize(tmp_tri_intersect);
-            tmp_tri_intersect = (tmp_tri_intersect.x * tri.v0) + (tmp_tri_intersect.y * tri.v1) + (tmp_tri_intersect.z * tri.v2);
-            tmp_tri_intersect = multiplyMV(geom.transform, glm::vec4(tmp_tri_intersect,1.0f));
-            
-            float tmp_tri_t = glm::length(r.origin - tmp_tri_intersect);
             */
+            
+
+            //tmp_tri_normal = tri.normal;
+            //tmp_tri_intersect = glm::normalize(tmp_tri_intersect);
+            //tmp_tri_intersect = (tmp_tri_intersect.x * tri.v0) + (tmp_tri_intersect.y * tri.v1) + (tmp_tri_intersect.z * tri.v2);
+            
+            //tmp_tri_t = (tmp_tri_intersect.x - ro.x) / rd.x;
+
+            /*
             if (tmp_tri_t < min_tri_t) {
                 min_tri_intersect = tmp_tri_intersect;
                 min_tri_normal = tmp_tri_normal;
                 min_tri_t = tmp_tri_t;
-            }
+            }*/
         }
     }
-    if (min_tri_t > 0.0f) {
-        intersectionPoint = min_tri_intersect;
+    if (intersect) {
+        intersectionPoint = multiplyMV(geom.transform, glm::vec4(min_tri_intersect, 1.0f));//
         normal = multiplyMV(geom.invTranspose, glm::vec4(min_tri_normal, 0.0f));
         return  min_tri_t;
     }

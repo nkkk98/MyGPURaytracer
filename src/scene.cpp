@@ -85,8 +85,7 @@ int Scene::loadObj(string filename, Geom& newGeom) {
                 tinyobj::real_t vy = attrib.vertices[3 * idx.vertex_index + 1];
                 tinyobj::real_t vz = attrib.vertices[3 * idx.vertex_index + 2];
                 newV.position= glm::vec3(vx, vy, vz);
-                //glm::vec3 vertex = glm::vec3(vx, vy, vz);
-                //vertex = glm::round(vertex * 100.f) / 100.f;
+
                 if (idx.normal_index >= 0) {
                     tinyobj::real_t nx = attrib.normals[3 * size_t(idx.normal_index) + 0];
                     tinyobj::real_t ny = attrib.normals[3 * size_t(idx.normal_index) + 1];
@@ -120,7 +119,6 @@ int Scene::loadObj(string filename, Geom& newGeom) {
             index_offset += fv;
 
             newTri.normal = glm::normalize(glm::cross(newTri.v2 - newTri.v0, newTri.v1 - newTri.v0));
-            newTri.normal = glm::round(newTri.normal * 100.f) / 100.f;
 
             // per-face material
             shapes[s].mesh.material_ids[f];

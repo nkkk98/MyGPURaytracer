@@ -2,7 +2,7 @@
 
 #include "intersections.h"
 
-#define JITTERED_SAMPLING 1
+#define JITTERED_SAMPLING 0
 // CHECKITOUT
 /**
  * Computes a cosine-weighted random direction in a hemisphere.
