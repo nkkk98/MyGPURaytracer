@@ -31,7 +31,7 @@
 #define CACHE_FIRST_BOUNCE 1
 #define SORT_BY_MATERIAL 1
 #define ANTIALIASING 0
-#define BOUNDING_BOX 1
+#define BOUNDING_BOX 0
 
 void checkCUDAErrorFn(const char *msg, const char *file, int line) {
 #if ERRORCHECK
@@ -347,7 +347,7 @@ __global__ void shadeFakeMaterial (
           pathSegments[idx].remainingBounces = 0;
       }
       else {
-          scatterRay(pathSegments[idx], pathSegments[idx].ray.origin+intersection.t* pathSegments[idx].ray.direction, intersection.surfaceNormal, material, rng);
+          scatterRay(pathSegments[idx], pathSegments[idx].ray.origin+intersection.t* pathSegments[idx].ray.direction, intersection.surfaceNormal, material, rng, iter, 0);
           pathSegments[idx].remainingBounces -= 1;
       }
     // If there was no intersection, color the ray black.
