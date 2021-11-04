@@ -318,6 +318,7 @@ __global__ void shadeFakeMaterial (
 	, ShadeableIntersection * shadeableIntersections
 	, PathSegment * pathSegments
 	, Material * materials
+    , int depths
 	)
 {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -347,7 +348,7 @@ __global__ void shadeFakeMaterial (
           pathSegments[idx].remainingBounces = 0;
       }
       else {
-          scatterRay(pathSegments[idx], pathSegments[idx].ray.origin+intersection.t* pathSegments[idx].ray.direction, intersection.surfaceNormal, material, rng, iter, 0);
+          scatterRay(pathSegments[idx], pathSegments[idx].ray.origin+intersection.t* pathSegments[idx].ray.direction, intersection.surfaceNormal, material, rng, iter, depth);
           pathSegments[idx].remainingBounces -= 1;
       }
     // If there was no intersection, color the ray black.
@@ -491,7 +492,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
     num_paths,
     dev_intersections,
     dev_paths,
-    dev_materials
+    dev_materials,
+    depth
   );
   //thrust::remove_if(dev_paths, dev_paths+num_paths, isTerminate());
   dev_path_end = thrust::stable_partition(thrust::device, dev_paths, dev_paths + num_paths, isTerminate());
