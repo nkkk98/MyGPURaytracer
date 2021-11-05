@@ -204,66 +204,74 @@ __host__ __device__ float triangleIntersectionLocalTest(Geom obj, glm::vec3 ro, 
     return -1;
 }
 
+__host__ __device__ float meshIntersectionTest(Geom geom, Ray r,
+    glm::vec3& intersectionPoint, glm::vec3& normal, bool& outside) {
+    Ray q;
+    q.origin = multiplyMV(geom.inverseTransform, glm::vec4(r.origin, 1.0f));
+    q.direction = glm::normalize(multiplyMV(geom.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+    float tmin = FLT_MAX;
+    int nearest = -1;
+
+    for (int j = 0; j < geom.faceSize; j++) {
+        Face& tri = geom.dev_faces[j];
+        glm::vec3 bary;
+        if (glm::intersectRayTriangle(q.origin, q.direction, tri.v0, tri.v1, tri.v2, bary)) {
+            // Get the actual intersect from barycentric coordinates
+            glm::vec3 p = (1 - bary[0] - bary[1]) * tri.v0 + bary[0] * tri.v1 + bary[1] * tri.v2;
+            float t = glm::distance(p, q.origin);
+            if (t < tmin) {
+                tmin = t;
+                nearest = j;
+            }
+        }
+    }
+    if (nearest == -1) {
+        return -1;
+    }
+
+    glm::vec3 objspaceIntersection = getPointOnRay(q, tmin);
+
+    glm::vec3 e1 = geom.dev_faces[nearest].v1 - geom.dev_faces[nearest].v0;
+    glm::vec3 e2 = geom.dev_faces[nearest].v2 - geom.dev_faces[nearest].v0;
+    glm::vec3 objspaceNormal = glm::normalize(glm::cross(e1, e2));
+
+    intersectionPoint = multiplyMV(geom.transform, glm::vec4(objspaceIntersection, 1.f));
+    normal = glm::normalize(multiplyMV(geom.invTranspose, glm::vec4(objspaceNormal, 0.f)));
+    outside = glm::dot(normal, r.direction) < 0;
+
+    return tmin;
+}
+
 __host__ __device__ float objTriIntersectionTest(Geom geom, Ray r,
-    glm::vec3& intersectionPoint, glm::vec3& normal) {
+    glm::vec3& intersectionPoint, glm::vec3& normal, bool& outside) {
     float min_tri_t = FLT_MAX;
     glm::vec3 tmp_tri_intersect;
     glm::vec3 tmp_tri_normal;
     glm::vec3 min_tri_intersect;
     glm::vec3 min_tri_normal;
-    bool intersect = false;
-
+    int nearest = -1;
     // to object space
-    glm::vec3 ro = multiplyMV(geom.inverseTransform, glm::vec4(r.origin, 1.0f));
-    glm::vec3 rd = glm::normalize(multiplyMV(geom.inverseTransform, glm::vec4(r.direction, 0.0f)));
+    Ray q;
+    q.origin = multiplyMV(geom.inverseTransform, glm::vec4(r.origin, 1.0f));
+    q.direction = glm::normalize(multiplyMV(geom.inverseTransform, glm::vec4(r.direction, 0.0f)));
 
-    
     for (int j = 0; j < geom.faceSize; j++) {
-        Face& tri = geom.dev_faces[j];
-
-        // check if there is an intersection
-        //bool did_insect = glm::intersectRayTriangle(ro, rd, tri.v0, tri.v1, tri.v2, tmp_tri_intersect);
-        float tmp_tri_t=triangleIntersectionLocalTest(geom, ro, rd, tri.v0, tri.v1, tri.v2, tmp_tri_intersect, tmp_tri_normal);
+        Face& tri = geom.dev_faces[j];   
+        float tmp_tri_t=triangleIntersectionLocalTest(geom, q.origin, q.direction, tri.v0, tri.v1, tri.v2, tmp_tri_intersect, tmp_tri_normal);
         if(tmp_tri_t>0 && tmp_tri_t < min_tri_t){
             min_tri_intersect = tmp_tri_intersect;
             min_tri_normal = tmp_tri_normal;
             min_tri_t = tmp_tri_t;
-            intersect = true;
-        //if (did_insect) {
-            /*
-            // to world space
-            tmp_tri_normal = tri.normal;
-            tmp_tri_intersect = glm::normalize(tmp_tri_intersect);
-
-            // convert barycentric to local
-            tmp_tri_intersect = ro + rd * tmp_tri_intersect.z;
-            
-            // local to world
-            tmp_tri_intersect = multiplyMV(geom.transform, glm::vec4(tmp_tri_intersect, 1.f));
-            float tmp_tri_t = glm::length(r.origin - tmp_tri_intersect);
-            */
-            
-
-            //tmp_tri_normal = tri.normal;
-            //tmp_tri_intersect = glm::normalize(tmp_tri_intersect);
-            //tmp_tri_intersect = (tmp_tri_intersect.x * tri.v0) + (tmp_tri_intersect.y * tri.v1) + (tmp_tri_intersect.z * tri.v2);
-            
-            //tmp_tri_t = (tmp_tri_intersect.x - ro.x) / rd.x;
-
-            /*
-            if (tmp_tri_t < min_tri_t) {
-                min_tri_intersect = tmp_tri_intersect;
-                min_tri_normal = tmp_tri_normal;
-                min_tri_t = tmp_tri_t;
-            }*/
+            nearest = j;
         }
     }
-    if (intersect) {
-        intersectionPoint = multiplyMV(geom.transform, glm::vec4(min_tri_intersect, 1.0f));//
-        normal = multiplyMV(geom.invTranspose, glm::vec4(min_tri_normal, 0.0f));
-        return  min_tri_t;
-    }
-    else {
+    if (nearest == -1) {
         return -1;
     }
+    intersectionPoint = multiplyMV(geom.transform, glm::vec4(min_tri_intersect, 1.f));
+    normal = glm::normalize(multiplyMV(geom.invTranspose, glm::vec4(min_tri_normal, 0.f)));
+    outside = glm::dot(normal, r.direction) < 0;
+    return  min_tri_t;
+
 }

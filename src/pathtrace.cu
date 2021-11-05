@@ -276,7 +276,7 @@ __global__ void computeIntersections(
                 }
                 else t = -1;
 #endif
-                t = objTriIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal);
+                t = objTriIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
             }
 			// Compute the minimum t from the intersection tests to determine what
 			// scene geometry object was hit first.
@@ -318,7 +318,7 @@ __global__ void shadeFakeMaterial (
 	, ShadeableIntersection * shadeableIntersections
 	, PathSegment * pathSegments
 	, Material * materials
-    , int depths
+    , int depth
 	)
 {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
