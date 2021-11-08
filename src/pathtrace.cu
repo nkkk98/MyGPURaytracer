@@ -22,15 +22,21 @@
 #include "intersections.h"
 #include "interactions.h"
 
+#include "timer.h"
+PerformanceTimer& timer()
+{
+    static PerformanceTimer timer;
+    return timer;
+}
 #define ERRORCHECK 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
 
-#define DEPTH_OF_FIELD 0
+#define DEPTH_OF_FIELD 1
 #define CACHE_FIRST_BOUNCE 1
 #define SORT_BY_MATERIAL 1
-#define ANTIALIASING 0
+#define ANTIALIASING 1
 #define BOUNDING_BOX 0
 
 void checkCUDAErrorFn(const char *msg, const char *file, int line) {
@@ -272,11 +278,13 @@ __global__ void computeIntersections(
             {
 #if BOUNDING_BOX
                 if (boudingBoxIntersectionTest(geom, pathSegment.ray)) {
-                    t = objTriIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal);
+                    t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
                 }
                 else t = -1;
 #endif
-                t = objTriIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                //Although self-writing triangle intersect can also be used to cal t, it's slower than glm::intersectRayTriangle
+                //t = objTriIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
             }
 			// Compute the minimum t from the intersection tests to determine what
 			// scene geometry object was hit first.
@@ -444,8 +452,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	// --- PathSegment Tracing Stage ---
 	// Shoot ray into scene, bounce between objects, push shading chunks
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-  bool iterationComplete = false;
-  
+    bool iterationComplete = false;
+    timer().startGpuTimer();
 	while (!iterationComplete) {
         dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
 #if CACHE_FIRST_BOUNCE && !ANTIALIASING && !DEPTH_OF_FIELD
@@ -500,7 +508,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
   num_paths= dev_path_end - dev_paths;
   if(num_paths==0)iterationComplete = true; // TODO: should be based off stream compaction results.
 	}
-
+    timer().endGpuTimer();
   // Assemble this iteration and apply it to the image
 	finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths_origin, dev_image, dev_paths);
 

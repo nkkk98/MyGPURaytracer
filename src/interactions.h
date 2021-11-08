@@ -172,9 +172,8 @@ void scatterRay(
         {
             pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
         }
-#else
-        pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
 #endif
+        pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
         pathSegment.ray.origin = intersect + pathSegment.ray.direction * 0.01f;
         pathSegment.color *= m.color;
     }

@@ -27,6 +27,8 @@ int iteration;
 int width;
 int height;
 
+double totalTime = 0.0f;
+
 //-------------------------------
 //-------------MAIN--------------
 //-------------------------------
@@ -136,10 +138,12 @@ void runCuda() {
         // execute the kernel
         int frame = 0;
         pathtrace(pbo_dptr, frame, iteration);
-
+        double time = timer().getGpuElapsedTimeForPreviousOperation();
+        totalTime += time;
         // unmap buffer object
         cudaGLUnmapBufferObject(pbo);
     } else {
+        std::cout << "time: " << totalTime << std::endl;
         saveImage();
         pathtraceFree();
         cudaDeviceReset();
