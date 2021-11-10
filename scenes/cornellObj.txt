@@ -118,7 +118,7 @@ TRANS       5 5 0
 ROTAT       0 0 0
 SCALE       .01 10 10
 
-// gltf object
+// object
 OBJECT 6
 obj
 ../models/cube.obj

@@ -34,31 +34,27 @@ Scene::Scene(string filename) {
     }
 }
 
-int Scene::loadObj(string filename, Geom& newGeom) {
+int Scene::loadObj(string inputfile, Geom& newGeom) {
 
-    tinyobj::attrib_t attrib;
-    std::vector<tinyobj::shape_t> shapes;
-    std::vector<tinyobj::material_t> materials;
+    tinyobj::ObjReaderConfig reader_config;
+    reader_config.mtl_search_path = "../models/";
 
-    std::string warn;
-    std::string err;
+    tinyobj::ObjReader reader;
 
-    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename.c_str());
-
-    if (!warn.empty()) {
-        std::cout << warn << std::endl;
-    }
-
-    if (!err.empty()) {
-        return -1;
-        std::cerr << err << std::endl;
-    }
-
-    if (!ret) {
-        return -1;
+    if (!reader.ParseFromFile(inputfile, reader_config)) {
+        if (!reader.Error().empty()) {
+            std::cerr << "TinyObjReader: " << reader.Error();
+        }
         exit(1);
     }
 
+    if (!reader.Warning().empty()) {
+        std::cout << "TinyObjReader: " << reader.Warning();
+    }
+
+    auto& attrib = reader.GetAttrib();
+    auto& shapes = reader.GetShapes();
+    auto& materials = reader.GetMaterials();
 
     float minX = FLT_MAX;
     float maxX = FLT_MAX;

@@ -33,7 +33,7 @@ PerformanceTimer& timer()
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
 
-#define DEPTH_OF_FIELD 1
+#define DEPTH_OF_FIELD 0
 #define CACHE_FIRST_BOUNCE 1
 #define SORT_BY_MATERIAL 1
 #define ANTIALIASING 1
