@@ -9,28 +9,27 @@ Raytracer.exe directory/to/scene.txt
 
 executable directory example:
 
+```
 --ProjectFolder
+	|--build
 
-​			|--build
+		|--bin
 
-​					|--bin
+			|--Release
 
-​						|--Release
+				|--Raytracer.exe
 
-​								|--Raytracer.exe
+			|--models
 
-​						|--models
+				|--materials
+						|--a.mtl
 
-​								|--materials
+				|-- a.obj 
 
-​											|--a.mtl
+			|--textures
 
-​								|-- a.obj 
-
-​						|--textures
-
-​								|--a_kd.jpg
-
-
+				|--a_kd.jpg
+```
 
 Note: The project framework is referenced from CIS565 course lab.
+
