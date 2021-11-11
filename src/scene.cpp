@@ -6,6 +6,7 @@
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
+#define STB_IMAGE_IMPLEMENTATION
 Scene::Scene(string filename) {
     cout << "Reading scene from " << filename << " ..." << endl;
     cout << " " << endl;
@@ -37,7 +38,7 @@ Scene::Scene(string filename) {
 int Scene::loadObj(string inputfile, Geom& newGeom) {
 
     tinyobj::ObjReaderConfig reader_config;
-    reader_config.mtl_search_path = "../models/";
+    reader_config.mtl_search_path = "../models/materials";
 
     tinyobj::ObjReader reader;
 
@@ -54,7 +55,7 @@ int Scene::loadObj(string inputfile, Geom& newGeom) {
 
     auto& attrib = reader.GetAttrib();
     auto& shapes = reader.GetShapes();
-    auto& materials = reader.GetMaterials();
+    auto& objMaterials = reader.GetMaterials();
 
     float minX = FLT_MAX;
     float maxX = FLT_MAX;
@@ -64,6 +65,7 @@ int Scene::loadObj(string inputfile, Geom& newGeom) {
     float maxZ = FLT_MIN;
 
     std::vector<Face> faces;
+    int geomMaterialID=0;//Assump all meshes of the model have the same material.
     // Loop over shapes
     for (size_t s = 0; s < shapes.size(); s++) {
         // Loop over faces(polygon)
@@ -99,9 +101,9 @@ int Scene::loadObj(string inputfile, Geom& newGeom) {
                 // tinyobj::real_t red   = attrib.colors[3*size_t(idx.vertex_index)+0];
                 // tinyobj::real_t green = attrib.colors[3*size_t(idx.vertex_index)+1];
                 // tinyobj::real_t blue  = attrib.colors[3*size_t(idx.vertex_index)+2];
-                if (v == 0) { newTri.v0 = newV.position; }
-                else if (v == 1) { newTri.v1 = newV.position; }
-                else if (v == 2) { newTri.v2 = newV.position; }
+                if (v == 0) { newTri.v0 = newV; }
+                else if (v == 1) { newTri.v1 = newV; }
+                else if (v == 2) { newTri.v2 = newV; }
 
                 // update bounding box
                 if (vx < minX) { minX = vx; }
@@ -114,7 +116,7 @@ int Scene::loadObj(string inputfile, Geom& newGeom) {
 
             index_offset += fv;
 
-            newTri.normal = glm::normalize(glm::cross(newTri.v2 - newTri.v0, newTri.v1 - newTri.v0));
+            newTri.normal = glm::normalize(glm::cross(newTri.v2.position - newTri.v0.position, newTri.v1.position - newTri.v0.position));
 
             // per-face material
             shapes[s].mesh.material_ids[f];
@@ -126,6 +128,107 @@ int Scene::loadObj(string inputfile, Geom& newGeom) {
     newGeom.faceSize = faces.size();
     // std::cout << "triangle size: " << tris.size() << std::endl;
     allFaces.push_back(faces);
+
+    //load textures for this object
+    stbi_set_flip_vertically_on_load(true);
+    tinyobj::material_t tm = objMaterials[geomMaterialID];
+    int width, height, nrChannels;
+    unsigned char* data;
+    //Kd
+    if (tm.diffuse_texname!="") {
+        data = stbi_load(tm.diffuse_texname.c_str(), &width, &height, &nrChannels, 0);
+        if (data) {
+            Texture t;
+            t.height = height;
+            t.width = width;
+            t.image = data;
+            t.channels = nrChannels;
+            kdTextures.push_back(t);
+            cout << "kdTextures are: " << tm.diffuse_texname << endl;
+            cout << "height: " << height << " width:" << width << " channels:" << nrChannels << " sample value:" << (unsigned int)data[2055*3]<<" "<< (unsigned int)data[2055*3+1]<<" " << (unsigned int)data[2055*3+2] <<endl;
+        }
+        else {
+            Texture* t = new Texture();
+            kdTextures.push_back(*t);
+            cout << "Failed to load Kd texture file " << tm.diffuse_texname << endl;
+        }
+    }
+    //Ks
+    if (tm.specular_texname != "") {
+        data = stbi_load(tm.specular_texname.c_str(), &width, &height, &nrChannels, 0);
+        if (data) {
+            Texture t;
+            t.height = height;
+            t.width = width;
+            t.image = data;
+            t.channels = nrChannels;
+            ksTextures.push_back(t);
+            cout << "ksTextures are " << tm.specular_texname << endl;
+            cout << "height: " << height << " width:" << width << " channels:" << nrChannels << " char size:" << sizeof(data)<<endl;
+
+
+        }
+        else {
+            Texture* t = new Texture();
+            ksTextures.push_back(*t);
+            cout<< "Failed to load Ks texture file " << tm.specular_highlight_texname << endl;
+        }
+    }
+    //Ke
+    if (tm.emissive_texname != "") {
+        data = stbi_load(tm.emissive_texname.c_str(), &width, &height, &nrChannels, 0);
+        if (data) {
+            Texture t;
+            t.height = height;
+            t.width = width;
+            t.image = data;
+            t.channels = nrChannels;
+            keTextures.push_back(t);
+            cout << "keTextures are " << tm.emissive_texname << endl;
+            cout << "height: " << height << " width:" << width << " channels:" << nrChannels << " sample value:" << (unsigned int)data[512 * 3*2] << " " << (unsigned int)data[512*2 * 3 + 1] << " " << (unsigned int)data[512*2 * 3 + 2] << endl;
+
+
+        }
+        else {
+            Texture* t = new Texture();
+            keTextures.push_back(*t);
+            cout << "Failed to load Ks texture file " << tm.emissive_texname << endl;
+        }
+    }
+    //Bump
+    if (tm.bump_texname != "") {
+        data = stbi_load(tm.bump_texname.c_str(), &width, &height, &nrChannels, 0);
+        if (data) {
+            Texture t;
+            t.height = height;
+            t.width = width;
+            t.image = data;
+            t.channels = nrChannels;
+            bumpTextures.push_back(t);
+            cout << "bumpTextures are " << tm.bump_texname << endl;
+            cout << "height: " << height << " width:" << width << " channels:" << nrChannels << " sample value:" << (unsigned int)data[2055 * 3] << " " << (unsigned int)data[2055 * 3 + 1] << " " << (unsigned int)data[2055 * 3 + 2] << endl;
+
+
+        }
+        else {
+            Texture* t = new Texture();
+            bumpTextures.push_back(*t);
+            cout << "Failed to load Bump texture file " << tm.bump_texname << endl;
+        }
+    }
+
+    //New material for this object
+    Material newMaterial;
+    newMaterial.specular.color = glm::vec3(tm.specular[0], tm.specular[1], tm.specular[2]);
+    newMaterial.specular.exponent = 0.0f;
+    newMaterial.color= glm::vec3(tm.diffuse[0], tm.diffuse[1], tm.diffuse[2]);
+    newMaterial.indexOfRefraction = tm.ior;
+    newMaterial.emittance = tm.emission[0];
+    newMaterial.hasReflective = 0.0f;
+    newMaterial.hasRefractive = 0.0f;
+
+    materials.push_back(newMaterial);
+    newGeom.materialid = materials.size() - 1;
     geoms.push_back(newGeom);
     return 1;
 }
@@ -167,13 +270,16 @@ int Scene::loadGeom(string objectid) {
 
         }
 
-        //link material
-        utilityCore::safeGetline(fp_in, line);
-        if (!line.empty() && fp_in.good()) {
-            vector<string> tokens = utilityCore::tokenizeString(line);
-            newGeom.materialid = atoi(tokens[1].c_str());
-            cout << "Connecting Geom " << objectid << " to Material " << newGeom.materialid << "..." << endl;
+        //link material for non-obj file
+        if (newGeom.type != OBJ) {
+            utilityCore::safeGetline(fp_in, line);
+            if (!line.empty() && fp_in.good()) {
+                vector<string> tokens = utilityCore::tokenizeString(line);
+                newGeom.materialid = atoi(tokens[1].c_str());
+                cout << "Connecting Geom " << objectid << " to Material " << newGeom.materialid << "..." << endl;
+            }
         }
+        else newGeom.materialid = -1;
 
         //load transformations
         utilityCore::safeGetline(fp_in, line);
@@ -205,6 +311,11 @@ int Scene::loadGeom(string objectid) {
             geoms.push_back(newGeom);
             std::vector<Face> faces;
             allFaces.push_back(faces);
+            Texture* t=new Texture();
+            kdTextures.push_back(*t);
+            ksTextures.push_back(*t);
+            bumpTextures.push_back(*t);
+            keTextures.push_back(*t);
             return 1;
         }
     }

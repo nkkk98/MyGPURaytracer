@@ -6,7 +6,7 @@
 #include "glm/glm.hpp"
 #include "utilities.h"
 #include "sceneStructs.h"
-
+#include "stb_image.h"
 using namespace std;
 
 class Scene {
@@ -19,6 +19,11 @@ private:
 public:
     Scene(string filename);
     ~Scene();
+
+    std::vector<Texture> kdTextures;
+    std::vector<Texture> ksTextures;
+    std::vector<Texture> bumpTextures;
+    std::vector<Texture> keTextures;
 
     std::vector<std::vector<Face>> allFaces;
     std::vector<Geom> geoms;

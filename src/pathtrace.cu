@@ -97,6 +97,7 @@ static ShadeableIntersection * dev_intersections = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 static ShadeableIntersection* dev_first_intersections = NULL;
 
+
 void pathtraceInit(Scene *scene) {
     hst_scene = scene;
     const Camera &cam = hst_scene->state.camera;
@@ -109,17 +110,37 @@ void pathtraceInit(Scene *scene) {
 
     for (int i = 0; i < scene->geoms.size(); i++)
     {
-
         Geom& geom = scene->geoms[i];
         cudaMalloc(&geom.dev_faces, geom.faceSize * sizeof(Face));
         cudaMemcpy(geom.dev_faces, (scene->allFaces[i]).data(), geom.faceSize * sizeof(Face), cudaMemcpyHostToDevice);
+
+        geom.kd.channels = scene->kdTextures[i].channels;
+        geom.kd.width = scene->kdTextures[i].width;
+        geom.kd.height = scene->kdTextures[i].height;
+        cudaMalloc(&geom.kd.image, scene->kdTextures[i].width * scene->kdTextures[i].height * scene->kdTextures[i].channels * sizeof(unsigned char));
+        cudaMemcpy(geom.kd.image, scene->kdTextures[i].image, scene->kdTextures[i].width * scene->kdTextures[i].height * scene->kdTextures[i].channels * sizeof(unsigned char), cudaMemcpyHostToDevice);
+
+        geom.ks.channels = scene->ksTextures[i].channels;
+        geom.ks.width = scene->ksTextures[i].width;
+        geom.ks.height = scene->ksTextures[i].height;
+        cudaMalloc(&geom.ks.image, scene->ksTextures[i].width * scene->ksTextures[i].height * scene->ksTextures[i].channels * sizeof(unsigned char));
+        cudaMemcpy(geom.ks.image, scene->ksTextures[i].image, scene->ksTextures[i].width * scene->ksTextures[i].height * scene->ksTextures[i].channels * sizeof(unsigned char), cudaMemcpyHostToDevice);
+
+        geom.ke.channels = scene->keTextures[i].channels;
+        geom.ke.width = scene->keTextures[i].width;
+        geom.ke.height = scene->keTextures[i].height;
+        cudaMalloc(&geom.ke.image, scene->keTextures[i].width * scene->keTextures[i].height * scene->keTextures[i].channels * sizeof(unsigned char));
+        cudaMemcpy(geom.ke.image, scene->keTextures[i].image, scene->keTextures[i].width * scene->keTextures[i].height * scene->keTextures[i].channels * sizeof(unsigned char), cudaMemcpyHostToDevice);
+
+        geom.bump.channels = scene->bumpTextures[i].channels;
+        geom.bump.width = scene->bumpTextures[i].width;
+        geom.bump.height = scene->bumpTextures[i].height;
+        cudaMalloc(&geom.bump.image, scene->bumpTextures[i].width * scene->bumpTextures[i].height * scene->bumpTextures[i].channels * sizeof(unsigned char));
+        cudaMemcpy(geom.bump.image, scene->bumpTextures[i].image, scene->bumpTextures[i].width * scene->bumpTextures[i].height * scene->bumpTextures[i].channels * sizeof(unsigned char), cudaMemcpyHostToDevice);
     }
 
     cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
     cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
-
-  	cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
-  	cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
 
   	cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
   	cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
@@ -141,6 +162,10 @@ void pathtraceFree() {
         {
             Geom& geom = hst_scene->geoms[i];
             cudaFree(geom.dev_faces);
+            cudaFree(geom.kd.image);
+            cudaFree(geom.ks.image);
+            cudaFree(geom.ke.image);
+            cudaFree(geom.bump.image);
         }
     }
     cudaFree(dev_image);  // no-op if dev_image is null
@@ -254,9 +279,11 @@ __global__ void computeIntersections(
 		float t_min = FLT_MAX;
 		int hit_geom_index = -1;
 		bool outside = true;
+        glm::vec2 uv = glm::vec2(0.0f,0.0f);
 
 		glm::vec3 tmp_intersect;
 		glm::vec3 tmp_normal;
+        glm::vec2 tmp_uv;
 
 		// naive parse through global geoms
         //TODO BVH
@@ -284,7 +311,7 @@ __global__ void computeIntersections(
 #endif
                 //Although self-writing triangle intersect can also be used to cal t, it's slower than glm::intersectRayTriangle
                 //t = objTriIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-                t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, outside);
             }
 			// Compute the minimum t from the intersection tests to determine what
 			// scene geometry object was hit first.
@@ -294,6 +321,9 @@ __global__ void computeIntersections(
 				hit_geom_index = i;
 				intersect_point = tmp_intersect;
 				normal = tmp_normal;
+                uv = tmp_uv;
+                int x = uv.x;
+                int y = uv.y;
 			}
 		}
 
@@ -307,6 +337,8 @@ __global__ void computeIntersections(
 			intersections[path_index].t = t_min;
 			intersections[path_index].materialId = geoms[hit_geom_index].materialid;
 			intersections[path_index].surfaceNormal = normal;
+            intersections[path_index].geomId = hit_geom_index;
+            intersections[path_index].texcoord = uv;
 		}
 	}
 }
@@ -326,6 +358,7 @@ __global__ void shadeFakeMaterial (
 	, ShadeableIntersection * shadeableIntersections
 	, PathSegment * pathSegments
 	, Material * materials
+    , Geom* geoms
     , int depth
 	)
 {
@@ -356,7 +389,7 @@ __global__ void shadeFakeMaterial (
           pathSegments[idx].remainingBounces = 0;
       }
       else {
-          scatterRay(pathSegments[idx], pathSegments[idx].ray.origin+intersection.t* pathSegments[idx].ray.direction, intersection.surfaceNormal, material, rng, iter, depth);
+          scatterRay(pathSegments[idx], pathSegments[idx].ray.origin+intersection.t* pathSegments[idx].ray.direction, intersection, material, rng, geoms, iter, depth);
           pathSegments[idx].remainingBounces -= 1;
       }
     // If there was no intersection, color the ray black.
@@ -501,6 +534,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
     dev_intersections,
     dev_paths,
     dev_materials,
+    dev_geoms,
     depth
   );
   //thrust::remove_if(dev_paths, dev_paths+num_paths, isTerminate());

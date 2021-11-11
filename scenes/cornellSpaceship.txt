@@ -138,7 +138,6 @@ SCALE       2 2 2
 OBJECT 8
 obj
 ../models/Intergalactic_Spaceship-(Wavefront).obj
-material 5
-TRANS       -1.5 2 2
-ROTAT       0 -45 0
+TRANS       1 3 3
+ROTAT       0 20 180
 SCALE      1 1 1

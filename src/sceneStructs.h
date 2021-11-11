@@ -27,10 +27,24 @@ struct Vertex {
 };
 
 struct Face {
-    glm::vec3 v0;
-    glm::vec3 v1;
-    glm::vec3 v2;
+    Vertex v0;
+    Vertex v1;
+    Vertex v2;
     glm::vec3 normal;
+};
+
+struct Texture {
+    int width;
+    int height;
+    unsigned char* image;
+    int channels;
+
+    Texture() {
+        width = 0;
+        height = 0;
+        channels = 0;
+        image = NULL;
+    }
 };
 
 struct Geom {
@@ -45,6 +59,11 @@ struct Geom {
 
     int faceSize;
     Face* dev_faces;
+
+    Texture kd;
+    Texture ks;
+    Texture bump;
+    Texture ke;
 
     glm::vec3 minPos;
     glm::vec3 maxPos;
@@ -95,4 +114,6 @@ struct ShadeableIntersection {
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+  glm::vec2 texcoord;
+  int geomId;
 };

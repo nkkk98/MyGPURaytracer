@@ -205,7 +205,7 @@ __host__ __device__ float triangleIntersectionLocalTest(Geom obj, glm::vec3 ro, 
 }
 
 __host__ __device__ float meshIntersectionTest(Geom geom, Ray r,
-    glm::vec3& intersectionPoint, glm::vec3& normal, bool& outside) {
+    glm::vec3& intersectionPoint, glm::vec3& normal, glm::vec2& texcoord, bool& outside) {
     Ray q;
     q.origin = multiplyMV(geom.inverseTransform, glm::vec4(r.origin, 1.0f));
     q.direction = glm::normalize(multiplyMV(geom.inverseTransform, glm::vec4(r.direction, 0.0f)));
@@ -216,13 +216,15 @@ __host__ __device__ float meshIntersectionTest(Geom geom, Ray r,
     for (int j = 0; j < geom.faceSize; j++) {
         Face& tri = geom.dev_faces[j];
         glm::vec3 bary;
-        if (glm::intersectRayTriangle(q.origin, q.direction, tri.v0, tri.v1, tri.v2, bary)) {
+        if (glm::intersectRayTriangle(q.origin, q.direction, tri.v0.position, tri.v1.position, tri.v2.position, bary)) {
             // Get the actual intersect from barycentric coordinates
-            glm::vec3 p = (1 - bary[0] - bary[1]) * tri.v0 + bary[0] * tri.v1 + bary[1] * tri.v2;
+            glm::vec3 p = (1 - bary[0] - bary[1]) * tri.v0.position + bary[0] * tri.v1.position + bary[1] * tri.v2.position;
             float t = glm::distance(p, q.origin);
             if (t < tmin) {
                 tmin = t;
                 nearest = j;
+                texcoord= (1 - bary[0] - bary[1]) * tri.v0.texcoord + bary[0] * tri.v1.texcoord + bary[1] * tri.v2.texcoord;
+                //texcoord= texcoord - glm::floor(texcoord);
             }
         }
     }
@@ -232,14 +234,50 @@ __host__ __device__ float meshIntersectionTest(Geom geom, Ray r,
 
     glm::vec3 objspaceIntersection = getPointOnRay(q, tmin);
 
-    glm::vec3 e1 = geom.dev_faces[nearest].v1 - geom.dev_faces[nearest].v0;
-    glm::vec3 e2 = geom.dev_faces[nearest].v2 - geom.dev_faces[nearest].v0;
+    glm::vec3 e1 = geom.dev_faces[nearest].v1.position - geom.dev_faces[nearest].v0.position;
+    glm::vec3 e2 = geom.dev_faces[nearest].v2.position - geom.dev_faces[nearest].v0.position;
     glm::vec3 objspaceNormal = glm::normalize(glm::cross(e1, e2));
 
     intersectionPoint = multiplyMV(geom.transform, glm::vec4(objspaceIntersection, 1.f));
     normal = glm::normalize(multiplyMV(geom.invTranspose, glm::vec4(objspaceNormal, 0.f)));
     outside = glm::dot(normal, r.direction) < 0;
+    
+    if (geom.type == OBJ && geom.bump.channels) {
+        //modify normal with bump texture
+        Texture bump = geom.bump;
+        glm::vec2 deltaUV1 = geom.dev_faces[nearest].v1.texcoord - geom.dev_faces[nearest].v0.texcoord;
+        glm::vec2 deltaUV2 = geom.dev_faces[nearest].v2.texcoord - geom.dev_faces[nearest].v0.texcoord;
 
+        glm::vec3 tangent, bitangent;
+        float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+
+        tangent.x = f * (deltaUV2.y * e1.x - deltaUV1.y * e2.x);
+        tangent.y = f * (deltaUV2.y * e1.y - deltaUV1.y * e2.y);
+        tangent.z = f * (deltaUV2.y * e1.z - deltaUV1.y * e2.z);
+        tangent = glm::normalize(tangent);
+
+        bitangent.x = f * (-deltaUV2.x * e1.x + deltaUV1.x * e2.x);
+        bitangent.y = f * (-deltaUV2.x * e1.y + deltaUV1.x * e2.y);
+        bitangent.z = f * (-deltaUV2.x * e1.z + deltaUV1.x * e2.z);
+        bitangent = glm::normalize(bitangent);
+
+        glm::vec3 T = normalize(glm::vec3(multiplyMV(geom.transform, glm::vec4(tangent, 0.f))));
+        glm::vec3 B= normalize(glm::vec3(multiplyMV(geom.transform, glm::vec4(bitangent, 0.f))));
+        glm::vec3 N = normal;
+
+        glm::mat3 TBN = glm::mat3(T,B,N);
+
+        int coordU = (int)(texcoord.x * bump.width);
+        int coordV = (int)(texcoord.y * bump.height);
+        int pixelID = coordV * bump.width + coordU;
+        unsigned int colR = (unsigned int)bump.image[pixelID * bump.channels];
+        unsigned int colG = (unsigned int)bump.image[pixelID * bump.channels + 1];
+        unsigned int colB = (unsigned int)bump.image[pixelID * bump.channels + 2];
+        glm::vec3 tangentSpaceNormal = normalize(glm::vec3(colR / 255.f, colG / 255.f, colB / 255.f));
+        tangentSpaceNormal = normalize(tangentSpaceNormal*2.0f-1.0f);
+        normal = normalize(glm::vec3(TBN * tangentSpaceNormal));
+    }
+    
     return tmin;
 }
 
@@ -258,7 +296,7 @@ __host__ __device__ float objTriIntersectionTest(Geom geom, Ray r,
 
     for (int j = 0; j < geom.faceSize; j++) {
         Face& tri = geom.dev_faces[j];   
-        float tmp_tri_t=triangleIntersectionLocalTest(geom, q.origin, q.direction, tri.v0, tri.v1, tri.v2, tmp_tri_intersect, tmp_tri_normal);
+        float tmp_tri_t=triangleIntersectionLocalTest(geom, q.origin, q.direction, tri.v0.position, tri.v1.position, tri.v2.position, tmp_tri_intersect, tmp_tri_normal);
         if(tmp_tri_t>0 && tmp_tri_t < min_tri_t){
             min_tri_intersect = tmp_tri_intersect;
             min_tri_normal = tmp_tri_normal;

@@ -112,9 +112,10 @@ __host__ __device__
 void scatterRay(
 		PathSegment & pathSegment,
         glm::vec3 intersect,
-        glm::vec3 normal,
+        ShadeableIntersection intersection,
         const Material &m,
         thrust::default_random_engine &rng,
+        Geom* geoms,
         int iter,
         int depth) {
     // TODO: implement this.
@@ -122,20 +123,20 @@ void scatterRay(
     // calculateRandomDirectionInHemisphere defined above.
     if (m.hasReflective>0) {
 
-        glm::vec3 reflectDir= glm::reflect(pathSegment.ray.direction, normal);
+        glm::vec3 reflectDir= glm::reflect(pathSegment.ray.direction, intersection.surfaceNormal);
         float spec = glm::pow(glm::max(glm::dot(-pathSegment.ray.direction,reflectDir),(float)0.0), m.specular.exponent);
         pathSegment.color *= m.hasReflective*spec*m.specular.color;
         //pathSegment.color *= m.specular.color;
-        pathSegment.ray.origin = intersect+normal*0.01f;
+        pathSegment.ray.origin = intersect+intersection.surfaceNormal*0.01f;
         pathSegment.ray.direction = reflectDir;
     }
     else if (m.hasRefractive>0) {
         float IoR1 = 1.0f;
         float IoR2 = m.indexOfRefraction;
 
-        float cosTheta = glm::dot(-pathSegment.ray.direction , normal);
+        float cosTheta = glm::dot(-pathSegment.ray.direction , intersection.surfaceNormal);
         if (cosTheta < 0) {
-            normal *= -1;
+            intersection.surfaceNormal *= -1;
             IoR1 = IoR2;
             IoR2 = 1.0f;
             cosTheta = abs(cosTheta);
@@ -144,7 +145,7 @@ void scatterRay(
         float sinTheta = sqrt(1.0-cosTheta*cosTheta);
 
         if (IoR1 / IoR2 * sinTheta > 1.0f) {
-            pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
+            pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, intersection.surfaceNormal);
         }
         else {
             float reflect_coeff0 = ((IoR1 - IoR2) / (IoR1 + IoR2)) * ((IoR1 - IoR2) / (IoR1 + IoR2));
@@ -153,17 +154,92 @@ void scatterRay(
             thrust::uniform_real_distribution<float> u01(0, 1);
             float random = u01(rng);
             if (random < reflect_coeff) {
-                pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
+                pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, intersection.surfaceNormal);
             }
             else {
-                pathSegment.ray.direction = glm::refract(pathSegment.ray.direction, normal, IoR1/IoR2);
+                pathSegment.ray.direction = glm::refract(pathSegment.ray.direction, intersection.surfaceNormal, IoR1/IoR2);
             }
         }
         pathSegment.color *= m.specular.color;
         pathSegment.ray.origin= intersect + pathSegment.ray.direction * 0.01f;
     }
-    //diffuse
-    else {
+    //cal for object color from texture specular plus diffuse
+    else if (geoms[intersection.geomId].type == OBJ) {
+        Geom geom = geoms[intersection.geomId];
+
+        glm::vec3 emission(0.0f);
+        if (geom.ke.channels) {
+            int coordU = (int)(intersection.texcoord.x * geom.ke.width);
+            int coordV = (int)(intersection.texcoord.y * geom.ke.height);
+            int pixelID = coordV * geom.ke.width + coordU;
+
+            unsigned int colR = (unsigned int)geom.ke.image[pixelID * geom.ke.channels];
+            unsigned int colG = (unsigned int)geom.ke.image[pixelID * geom.ke.channels + 1];
+            unsigned int colB = (unsigned int)geom.ke.image[pixelID * geom.ke.channels + 2];
+            emission = glm::vec3(colR / 255.f, colG / 255.f, colB / 255.f);
+        }
+        if (emission.x > FLT_EPSILON || emission.y > FLT_EPSILON || emission.z > FLT_EPSILON) {
+            pathSegment.color *= (emission * 5.0f);
+            pathSegment.remainingBounces = 1;
+            return;
+        }
+
+        float IoR1 = 1.0f;
+        float IoR2 = m.indexOfRefraction;
+        float cosTheta = glm::dot(-pathSegment.ray.direction, intersection.surfaceNormal);
+        float reflect_coeff0 = ((IoR1 - IoR2) / (IoR1 + IoR2)) * ((IoR1 - IoR2) / (IoR1 + IoR2));
+        float reflect_coeff = reflect_coeff0 + (1.0f - reflect_coeff0) * pow((1.0 - cosTheta), 5);
+
+        thrust::uniform_real_distribution<float> u01(0, 1);
+        float random = u01(rng);
+
+        if (random < reflect_coeff) {
+            //specular color
+            int coordU = (int)(intersection.texcoord.x * geom.ks.width);
+            int coordV = (int)(intersection.texcoord.y * geom.ks.height);
+            int pixelID = coordV * geom.ks.width + coordU;
+
+            glm::vec3 reflectDir = glm::reflect(pathSegment.ray.direction, intersection.surfaceNormal);
+            float spec = glm::pow(glm::max(glm::dot(-pathSegment.ray.direction, reflectDir), (float)0.0), 0.0f);
+        
+            glm::vec3 specColor;
+            if (geom.ks.channels) {
+                unsigned int colR = (unsigned int)geom.ks.image[pixelID * geom.ks.channels];
+                unsigned int colG = (unsigned int)geom.ks.image[pixelID * geom.ks.channels + 1];
+                unsigned int colB = (unsigned int)geom.ks.image[pixelID * geom.ks.channels + 2];
+                specColor = glm::vec3(colR / 255.f, colG / 255.f, colB / 255.f);
+            }
+            else specColor = m.specular.color;
+            specColor *= spec;
+            pathSegment.color *= (specColor);
+            pathSegment.ray.origin = intersect + intersection.surfaceNormal * 0.01f;
+            pathSegment.ray.direction = reflectDir;
+
+        }
+        else {
+            int coordU = (int)(intersection.texcoord.x * geom.kd.width);
+            int coordV = (int)(intersection.texcoord.y * geom.kd.height);
+            int pixelID = coordV * geom.kd.width + coordU;
+            //diffuse color
+            coordU = (int)(intersection.texcoord.x * geom.kd.width);
+            coordV = (int)(intersection.texcoord.y * geom.kd.height);
+            pixelID = coordV * geom.kd.width + coordU;
+            glm::vec3 diffuseColor;
+            if (geom.kd.channels) {
+                unsigned int colR = (unsigned int)geom.kd.image[pixelID * geom.kd.channels];
+                unsigned int colG = (unsigned int)geom.kd.image[pixelID * geom.kd.channels + 1];
+                unsigned int colB = (unsigned int)geom.kd.image[pixelID * geom.kd.channels + 2];
+                diffuseColor = glm::vec3(colR / 255.f, colG / 255.f, colB / 255.f);
+            }
+            else diffuseColor = m.color;
+            pathSegment.color *= (diffuseColor);
+            pathSegment.ray.direction = calculateRandomDirectionInHemisphere(intersection.surfaceNormal, rng);
+            pathSegment.ray.origin = intersect + pathSegment.ray.direction * 0.01f;
+        }
+        
+    }
+    //pure diffuse
+    else{
 #if JITTERED_SAMPLING
         if (depth == 1) {
             pathSegment.ray.direction = calculateJitteredDirectionHemisphere(normal, rng, iter, 5000);
@@ -173,7 +249,7 @@ void scatterRay(
             pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
         }
 #endif
-        pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
+        pathSegment.ray.direction = calculateRandomDirectionInHemisphere(intersection.surfaceNormal, rng);
         pathSegment.ray.origin = intersect + pathSegment.ray.direction * 0.01f;
         pathSegment.color *= m.color;
     }
