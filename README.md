@@ -13,9 +13,9 @@ executable directory example:
 
 ​			|--build
 
-​					|--bin
+​			\ |--bin
 
-​						|--Release
+​				 \ \ |--Release
 
 ​								|--Raytracer.exe
 
