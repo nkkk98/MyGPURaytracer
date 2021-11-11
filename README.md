@@ -12,15 +12,15 @@ executable directory example:
 ```
 --ProjectFolder
 	|--build
-		|--bin
-			|--Release
-				|--Raytracer.exe
-			|--models
-				|--materials
-						|--a.mtl
-				|-- a.obj 
-			|--textures
-				|--a_kd.jpg
+	    |--bin
+		|--Release
+		    |--Raytracer.exe
+		|--models
+		    |--materials
+			|--a.mtl
+		    |-- a.obj 
+		|--textures
+		    |--a_kd.jpg
 ```
 
 Note: The project framework is referenced from CIS565 course lab.
