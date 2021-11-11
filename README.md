@@ -12,22 +12,14 @@ executable directory example:
 ```
 --ProjectFolder
 	|--build
-
 		|--bin
-
 			|--Release
-
 				|--Raytracer.exe
-
 			|--models
-
 				|--materials
 						|--a.mtl
-
 				|-- a.obj 
-
 			|--textures
-
 				|--a_kd.jpg
 ```
 
