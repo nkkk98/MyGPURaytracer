@@ -39,6 +39,8 @@ PerformanceTimer& timer()
 #define ANTIALIASING 1
 #define BOUNDING_BOX 0
 
+#define AI_DENOISE 1
+
 void checkCUDAErrorFn(const char *msg, const char *file, int line) {
 #if ERRORCHECK
     cudaDeviceSynchronize();
@@ -88,6 +90,29 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution,
     }
 }
 
+//Kernel that writes the denoised image to the OpenGL PBO directly.
+__global__ void sendDenosiedImageToPBO(uchar4* pbo, glm::ivec2 resolution,
+    int iter, glm::vec3* image) {
+    int x = (blockIdx.x * blockDim.x) + threadIdx.x;
+    int y = (blockIdx.y * blockDim.y) + threadIdx.y;
+
+    if (x < resolution.x && y < resolution.y) {
+        int index = x + (y * resolution.x);
+        glm::vec3 pix = image[index];
+
+        glm::ivec3 color;
+        color.x = glm::clamp((int)(pix.x  * 255.0), 0, 255);
+        color.y = glm::clamp((int)(pix.y  * 255.0), 0, 255);
+        color.z = glm::clamp((int)(pix.z  * 255.0), 0, 255);
+
+        // Each thread writes one pixel location in the texture (textel)
+        pbo[index].w = 0;
+        pbo[index].x = color.x;
+        pbo[index].y = color.y;
+        pbo[index].z = color.z;
+    }
+}
+
 static Scene * hst_scene = NULL;
 static glm::vec3 * dev_image = NULL;
 static Geom * dev_geoms = NULL;
@@ -97,6 +122,8 @@ static ShadeableIntersection * dev_intersections = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 static ShadeableIntersection* dev_first_intersections = NULL;
 
+static glm::vec3 * dev_albedo = NULL;
+static glm::vec3 * dev_denoised_output = NULL;
 
 void pathtraceInit(Scene *scene) {
     hst_scene = scene;
@@ -153,6 +180,14 @@ void pathtraceInit(Scene *scene) {
         cudaMalloc(&dev_first_intersections, pixelcount* sizeof(ShadeableIntersection));
         cudaMemset(dev_first_intersections, 0, pixelcount* sizeof(ShadeableIntersection));
 #endif
+
+#if AI_DENOISE
+        cudaMalloc(&dev_albedo, pixelcount * sizeof(glm::vec3));
+        cudaMemset(dev_albedo, 0, pixelcount * sizeof(glm::vec3));
+        cudaMalloc(&dev_denoised_output, pixelcount * sizeof(glm::vec3));
+        cudaMemset(dev_denoised_output, 0, pixelcount * sizeof(glm::vec3));
+#endif
+
     checkCUDAError("pathtraceInit");
 }
 
@@ -176,6 +211,11 @@ void pathtraceFree() {
     // TODO: clean up any extra device memory you created
 #if CACHE_FIRST_BOUNCE
         cudaFree(dev_first_intersections);
+#endif
+
+#if AI_DENOISE
+        cudaFree(dev_albedo);
+        cudaFree(dev_denoised_output);
 #endif
     checkCUDAError("pathtraceFree");
 }
@@ -360,12 +400,64 @@ __global__ void shadeFakeMaterial (
 	, Material * materials
     , Geom* geoms
     , int depth
+    , glm::vec3* albedo
 	)
 {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < num_paths)
   {
     ShadeableIntersection intersection = shadeableIntersections[idx];
+#if AI_DENOISE
+    if (iter == 1 && depth==1) {
+        if (intersection.t > 0.0f) {
+            Material material = materials[intersection.materialId];
+            glm::vec3 materialColor = material.color;
+            albedo[pathSegments[idx].pixelIndex] = materialColor;
+            
+            Geom geom = geoms[intersection.geomId];
+            if (geom.type == OBJ) {
+                glm::vec3 emission(0.0f);
+                if (geom.ke.channels) {
+                    int coordU = (int)(intersection.texcoord.x * geom.ke.width);
+                    int coordV = (int)(intersection.texcoord.y * geom.ke.height);
+                    int pixelID = coordV * geom.ke.width + coordU;
+
+                    unsigned int colR = (unsigned int)geom.ke.image[pixelID * geom.ke.channels];
+                    unsigned int colG = (unsigned int)geom.ke.image[pixelID * geom.ke.channels + 1];
+                    unsigned int colB = (unsigned int)geom.ke.image[pixelID * geom.ke.channels + 2];
+                    emission = glm::vec3(colR / 255.f, colG / 255.f, colB / 255.f);
+                }
+                //if emittance load emission, else load diffuse color
+                if (emission.x > FLT_EPSILON || emission.y > FLT_EPSILON || emission.z > FLT_EPSILON) {
+                    albedo[pathSegments[idx].pixelIndex]= (emission * 5.0f);
+                }else if (geom.kd.channels) {
+                    int coordU = (int)(intersection.texcoord.x * geom.kd.width);
+                    int coordV = (int)(intersection.texcoord.y * geom.kd.height);
+                    int pixelID = coordV * geom.kd.width + coordU;
+                    //diffuse color
+                    coordU = (int)(intersection.texcoord.x * geom.kd.width);
+                    coordV = (int)(intersection.texcoord.y * geom.kd.height);
+                    pixelID = coordV * geom.kd.width + coordU;
+                    glm::vec3 diffuseColor;
+                    unsigned int colR = (unsigned int)geom.kd.image[pixelID * geom.kd.channels];
+                    unsigned int colG = (unsigned int)geom.kd.image[pixelID * geom.kd.channels + 1];
+                    unsigned int colB = (unsigned int)geom.kd.image[pixelID * geom.kd.channels + 2];
+                    diffuseColor = glm::vec3(colR / 255.f, colG / 255.f, colB / 255.f);
+                    albedo[pathSegments[idx].pixelIndex] = diffuseColor;
+                }
+            }else if (material.emittance > 0.0f) {
+                albedo[pathSegments[idx].pixelIndex] = materialColor * material.emittance;
+            }
+            else if (material.hasRefractive > 0.0f) {
+                albedo[pathSegments[idx].pixelIndex] = material.specular.color;
+            }
+        }
+        else {
+            albedo[pathSegments[idx].pixelIndex] = glm::vec3(0.0f);
+        }
+         
+    }
+#endif
     if (intersection.t > 0.0f) { // if the intersection exists...
       // Set up the RNG
       // LOOK: this is how you use thrust's RNG! Please look at
@@ -528,15 +620,29 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
   // materials you have in the scenefile.
   // TODO: compare between directly shading the path segments and shading
   // path segments that have been reshuffled to be contiguous in memory.
-  shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>> (
+#if AI_DENOISE
+    shadeFakeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
+        iter,
+        num_paths,
+        dev_intersections,
+        dev_paths,
+        dev_materials,
+        dev_geoms,
+        depth,
+        dev_albedo
+        );
+#else  
+    shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>> (
     iter,
     num_paths,
     dev_intersections,
     dev_paths,
     dev_materials,
     dev_geoms,
-    depth
+    depth,
+    NULL
   );
+#endif
   //thrust::remove_if(dev_paths, dev_paths+num_paths, isTerminate());
   dev_path_end = thrust::stable_partition(thrust::device, dev_paths, dev_paths + num_paths, isTerminate());
   num_paths= dev_path_end - dev_paths;
@@ -547,12 +653,31 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths_origin, dev_image, dev_paths);
 
     ///////////////////////////////////////////////////////////////////////////
-
+#if !AI_DENOISE
     // Send results to OpenGL buffer for rendering
     sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);
-
+#endif
     // Retrieve image from GPU
     cudaMemcpy(hst_scene->state.image.data(), dev_image,
-            pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
-    checkCUDAError("pathtrace");
+        pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+
+#if AI_DENOISE
+    cudaMemcpy(hst_scene->state.albedo.data(), dev_albedo,
+        pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+#endif
+    checkCUDAError("pathtrace copy");
+}
+
+void sendToGPU(uchar4* pbo, int iter) {
+    const Camera& cam = hst_scene->state.camera;
+    const int pixelcount = cam.resolution.x * cam.resolution.y;
+    cudaMemcpy(dev_denoised_output, hst_scene->state.output.data(), pixelcount*sizeof(glm::vec3),cudaMemcpyHostToDevice);
+
+    // 2D block for generating ray from camera
+    const dim3 blockSize2d(8, 8);
+    const dim3 blocksPerGrid2d(
+        (cam.resolution.x + blockSize2d.x - 1) / blockSize2d.x,
+        (cam.resolution.y + blockSize2d.y - 1) / blockSize2d.y);
+
+    sendDenosiedImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_denoised_output);
 }

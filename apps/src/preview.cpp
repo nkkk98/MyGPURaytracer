@@ -10,6 +10,7 @@ GLuint displayImage;
 
 GLFWwindow *window;
 
+
 std::string currentTimeString() {
     time_t now;
     time(&now);
@@ -187,7 +188,7 @@ void mainLoop() {
 
         runCuda();
 
-        string title = "CIS565 Path Tracer | " + utilityCore::convertIntToString(iteration) + " Iterations";
+        string title = "GPU Path Tracer | " + utilityCore::convertIntToString(iteration) + " Iterations";
         
         std::ostringstream ss;
         ss << "  [";

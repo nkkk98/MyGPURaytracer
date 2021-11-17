@@ -102,6 +102,29 @@ oidn_add_app(oidnDenoise oidnDenoise.cpp)
 oidn_add_app(oidnBenchmark oidnBenchmark.cpp)
 oidn_add_app(oidnTest oidnTest.cpp catch.hpp)
 
-cuda_add_executable(oidnRayTracer ${sources} ${headers})
-target_link_libraries(oidnRayTracer common utils ${LIBRARIES} ${PROJECT_NAME})
-install(TARGETS oidnRayTracer DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT apps)
+set(APP_NAME oidnRayTracer)
+cuda_add_executable(${APP_NAME} ${sources} ${headers})
+target_link_libraries(${APP_NAME} common utils ${LIBRARIES} ${PROJECT_NAME})
+install(TARGETS ${APP_NAME} DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT apps)
+
+add_custom_command(
+    TARGET ${APP_NAME}
+    PRE_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/textures
+        ${CMAKE_BINARY_DIR}/textures
+    )
+add_custom_command(
+    TARGET ${APP_NAME}
+    PRE_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/scenes
+        ${CMAKE_BINARY_DIR}/scenes
+    )
+add_custom_command(
+    TARGET ${APP_NAME}
+    PRE_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/models
+        ${CMAKE_BINARY_DIR}/models
+    )

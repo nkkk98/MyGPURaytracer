@@ -377,7 +377,10 @@ int Scene::loadCamera() {
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
-
+    state.albedo.resize(arraylen);
+    std::fill(state.albedo.begin(), state.albedo.end(), glm::vec3());
+    state.output.resize(arraylen);
+    std::fill(state.output.begin(), state.output.end(), glm::vec3());
     cout << "Loaded camera!" << endl;
     return 1;
 }
