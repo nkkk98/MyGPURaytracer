@@ -3,9 +3,10 @@ A high performance raytracer programmed with CUDA. There are various improval fe
 
 **Spaceship in cornell box**
 
-![cornell.2021-11-17_12-17-06z.43output](F:\2021b\MyGPURaytracer\build\Release\cornell.2021-11-17_12-17-06z.43output.png)
 
-![cornell.2021-11-17_12-17-06z.54output](F:\2021b\MyGPURaytracer\build\Release\cornell.2021-11-17_12-17-06z.54output.png)
+![cornell 2021-11-17_12-17-06z 43output](https://user-images.githubusercontent.com/28896013/142200062-1871c9d9-30bb-4ceb-b0de-94bc274150d1.png)
+![cornell 2021-11-17_12-17-06z 54output](https://user-images.githubusercontent.com/28896013/142200029-cb983f46-7837-4cf0-ad72-b4b899c49ef5.png)
+
 
 ## Features
 
