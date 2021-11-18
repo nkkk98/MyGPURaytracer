@@ -119,3 +119,7 @@ struct ShadeableIntersection {
   glm::vec2 texcoord;
   int geomId;
 };
+
+struct GBufferPixel {
+    float t;
+};

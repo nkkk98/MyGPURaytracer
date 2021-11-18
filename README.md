@@ -16,7 +16,7 @@ A high performance raytracer programmed with CUDA. There are various improval fe
 
 * AI denoise implemented with [Intel Open Image Denoise](https://github.com/OpenImageDenoise/oidn);
 
-* Arbitrary .obj model file loading with its specular,diffuse,bumping textures;
+* Arbitrary .obj model file loading with its emissive, specular,diffuse,bumping textures;
 
 * Depth of field
 
@@ -30,6 +30,7 @@ A high performance raytracer programmed with CUDA. There are various improval fe
 
 * [Wavefront pathtracing](https://research.nvidia.com/publication/megakernels-considered-harmful-wavefront-path-tracing-gpus) --group rays by material
 * Hierarchical spatial data structurs(BVH)--for massive scenes
+* Motion blur
 
 ## Usage
 

@@ -3,6 +3,13 @@
 #include "main.h"
 #include "preview.h"
 
+#include "../imgui/imgui.h"
+#include "../imgui/imgui_impl_glfw.h"
+#include "../imgui/imgui_impl_opengl3.h"
+
+#define IMGUI_IMPL_OPENGL_LOADER_GLEW
+
+
 GLuint positionLocation = 0;
 GLuint texcoordsLocation = 1;
 GLuint pbo;
@@ -166,8 +173,70 @@ bool init() {
     glUseProgram(passthroughProgram);
     glActiveTexture(GL_TEXTURE0);
 
+    // Setup Dear ImGui context
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+
+    //// Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+
+    // Setup Platform/Renderer bindings
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 130");
+
+
     return true;
 }
+
+static ImGuiWindowFlags windowFlags = ImGuiWindowFlags_None | ImGuiWindowFlags_NoMove;
+static bool ui_hide = false;
+
+void drawGui(int windowWidth, int windowHeight) {
+    // Dear imgui new frame
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+
+    // Dear imgui define
+    ImVec2 minSize(300.f, 220.f);
+    ImVec2 maxSize((float)windowWidth * 0.5, (float)windowHeight * 0.3);
+    ImGui::SetNextWindowSizeConstraints(minSize, maxSize);
+
+    ImGui::SetNextWindowPos(ui_hide ? ImVec2(-1000.f, -1000.f) : ImVec2(0.0f, 0.0f));
+
+    ImGui::Begin("Control Panel", 0, windowFlags);
+    ImGui::SetWindowFontScale(1);
+
+    ImGui::Text("press H to hide GUI completely.");
+    if (ImGui::IsKeyPressed('H')) {
+        ui_hide = !ui_hide;
+    }
+    ImGui::SliderInt("Iterations", &ui_iterations, 1, startupIterations);
+
+    ImGui::Checkbox("Denoise", &ui_denoise);
+
+    ImGui::SliderInt("Filter Size", &ui_filterSize, 0, 100);
+    ImGui::SliderFloat("Color Weight", &ui_colorWeight, 0.0f, 10.0f);
+    ImGui::SliderFloat("Normal Weight", &ui_normalWeight, 0.0f, 10.0f);
+    ImGui::SliderFloat("Position Weight", &ui_positionWeight, 0.0f, 10.0f);
+
+    ImGui::Separator();
+
+    ImGui::Checkbox("Show GBuffer", &ui_showGbuffer);
+
+    ImGui::Separator();
+
+    if (ImGui::Button("Save image and exit")) {
+        ui_saveAndExit = true;
+    }
+
+    ImGui::End();
+
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+}
+
 
 void mainLoop() {
     double fps = 0;
@@ -204,6 +273,12 @@ void mainLoop() {
 
         // VAO, shader program, and texture already bound
         glDrawElements(GL_TRIANGLES, 6,  GL_UNSIGNED_SHORT, 0);
+
+        // Draw imgui
+        int display_w, display_h;
+        glfwGetFramebufferSize(window, &display_w, &display_h);
+        drawGui(display_w, display_h);
+
         glfwSwapBuffers(window);
     }
     glfwDestroyWindow(window);
