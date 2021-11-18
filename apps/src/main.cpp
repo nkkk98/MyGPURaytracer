@@ -278,8 +278,8 @@ void runCuda() {
 
         // execute the kernel
         int frame = 0;
-        pathtrace(pbo_dptr, frame, iteration);
-
+        //pathtrace(pbo_dptr, frame, iteration);
+        pathtrace(frame, iteration, ui_denoise, (int)(log2(ui_filterSize / 2) + 1.f), ui_colorWeight, ui_positionWeight, ui_normalWeight);
         double time = timer().getGpuElapsedTimeForPreviousOperation();
         totalTime += time;
 

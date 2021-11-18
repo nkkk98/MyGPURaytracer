@@ -41,6 +41,8 @@ PerformanceTimer& timer()
 
 #define AI_DENOISE 0
 
+#define WEIGHTS 1
+
 void checkCUDAErrorFn(const char *msg, const char *file, int line) {
 #if ERRORCHECK
     cudaDeviceSynchronize();
@@ -67,44 +69,6 @@ thrust::default_random_engine makeSeededRandomEngine(int iter, int index, int de
     return thrust::default_random_engine(h);
 }
 
-__global__ void gbufferToPBO(uchar4* pbo, glm::ivec2 resolution, GBufferPixel* gBuffer) {
-    int x = (blockIdx.x * blockDim.x) + threadIdx.x;
-    int y = (blockIdx.y * blockDim.y) + threadIdx.y;
-
-    if (x < resolution.x && y < resolution.y) {
-        int index = x + (y * resolution.x);
-        float timeToIntersect = gBuffer[index].t * 256.0;
-
-        pbo[index].w = 0;
-        pbo[index].x = timeToIntersect;
-        pbo[index].y = timeToIntersect;
-        pbo[index].z = timeToIntersect;
-    }
-}
-
-//Kernel that writes the image to the OpenGL PBO directly.
-__global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution,
-        int iter, glm::vec3* image) {
-    int x = (blockIdx.x * blockDim.x) + threadIdx.x;
-    int y = (blockIdx.y * blockDim.y) + threadIdx.y;
-
-    if (x < resolution.x && y < resolution.y) {
-        int index = x + (y * resolution.x);
-        glm::vec3 pix = image[index];
-
-        glm::ivec3 color;
-        color.x = glm::clamp((int) (pix.x / iter * 255.0), 0, 255);
-        color.y = glm::clamp((int) (pix.y / iter * 255.0), 0, 255);
-        color.z = glm::clamp((int) (pix.z / iter * 255.0), 0, 255);
-
-        // Each thread writes one pixel location in the texture (textel)
-        pbo[index].w = 0;
-        pbo[index].x = color.x;
-        pbo[index].y = color.y;
-        pbo[index].z = color.z;
-    }
-}
-
 //Kernel that writes the denoised image to the OpenGL PBO directly.
 __global__ void sendDenosiedImageToPBO(uchar4* pbo, glm::ivec2 resolution,
     int iter, glm::vec3* image) {
@@ -127,6 +91,152 @@ __global__ void sendDenosiedImageToPBO(uchar4* pbo, glm::ivec2 resolution,
         pbo[index].z = color.z;
     }
 }
+
+
+//Kernel that writes the image to the OpenGL PBO directly.
+__global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution,
+    int iter, glm::vec3* image) {
+    int x = (blockIdx.x * blockDim.x) + threadIdx.x;
+    int y = (blockIdx.y * blockDim.y) + threadIdx.y;
+
+    if (x < resolution.x && y < resolution.y) {
+        int index = x + (y * resolution.x);
+        glm::vec3 pix = image[index];
+
+        glm::ivec3 color;
+        color.x = glm::clamp((int)(pix.x / iter * 255.0), 0, 255);
+        color.y = glm::clamp((int)(pix.y / iter * 255.0), 0, 255);
+        color.z = glm::clamp((int)(pix.z / iter * 255.0), 0, 255);
+
+        // Each thread writes one pixel location in the texture (textel)
+        pbo[index].w = 0;
+        pbo[index].x = color.x;
+        pbo[index].y = color.y;
+        pbo[index].z = color.z;
+    }
+}
+
+__global__ void gbufferToPBO(uchar4* pbo, glm::ivec2 resolution, GBufferPixel* gBuffer) {
+    int x = (blockIdx.x * blockDim.x) + threadIdx.x;
+    int y = (blockIdx.y * blockDim.y) + threadIdx.y;
+
+    if (x < resolution.x && y < resolution.y) {
+        // visualize t
+        /*int index = x + (y * resolution.x);
+        float timeToIntersect = gBuffer[index].t * 256.0;
+        pbo[index].w = 0;
+        pbo[index].x = timeToIntersect;
+        pbo[index].y = timeToIntersect;
+        pbo[index].z = timeToIntersect;*/
+
+        // visualize position
+        /*int index = x + (y * resolution.x);
+        glm::vec3 color = glm::clamp(glm::abs(gBuffer[index].position * 25.f), 0.f, 255.f);
+        pbo[index].w = 0;
+        pbo[index].x = color.x;
+        pbo[index].y = color.y;
+        pbo[index].z = color.z;*/
+
+        // visualize normal
+        int index = x + (y * resolution.x);
+        glm::vec3 color = glm::clamp(glm::abs(gBuffer[index].normal * 255.f), 0.f, 255.f);
+
+        pbo[index].w = 0;
+        pbo[index].x = color.x;
+        pbo[index].y = color.y;
+        pbo[index].z = color.z;
+    }
+}
+
+__global__ void denoiseIteration(int step, float c_weight, float p_weight, float n_weight, glm::ivec2 resolution, GBufferPixel* gBuffer) {
+
+    int x = (blockIdx.x * blockDim.x) + threadIdx.x;
+    int y = (blockIdx.y * blockDim.y) + threadIdx.y;
+    int index = x + (y * resolution.x);
+
+    if (x >= resolution.x && y >= resolution.y) {
+        return;
+    }
+
+    //kernel
+    float kernel[25] = { 1.f / 16.f, 1.f / 16.f , 1.f / 16.f , 1.f / 16.f , 1.f / 16.f,
+                        1.f / 16.f, 1.f / 4.f , 1.f / 4.f , 1.f / 4.f , 1.f / 16.f,
+                        1.f / 16.f, 1.f / 4.f , 3.f / 8.f , 1.f / 4.f , 1.f / 16.f,
+                        1.f / 16.f, 1.f / 4.f , 1.f / 4.f , 1.f / 4.f , 1.f / 16.f,
+                        1.f / 16.f, 1.f / 16.f , 1.f / 16.f , 1.f / 16.f , 1.f / 16.f };
+
+    //offset
+    glm::ivec2 offset[25] = { glm::ivec2(-2, 2) ,glm::ivec2(-1, 2), glm::ivec2(0, 2) , glm::ivec2(1, 2) ,glm::ivec2(2, 2),
+                        glm::ivec2(-2, 1) ,glm::ivec2(-1, 1), glm::ivec2(0, 1) , glm::ivec2(1, 1) ,glm::ivec2(2, 1),
+                         glm::ivec2(-2, 0) , glm::ivec2(-1, 0) , glm::ivec2(0, 0) , glm::ivec2(1, 0) , glm::ivec2(2, 0),
+                        glm::ivec2(-2, -1) ,glm::ivec2(-1, -1), glm::ivec2(0, -1) , glm::ivec2(1, -1) ,glm::ivec2(2, -1),
+                        glm::ivec2(-2, -2) ,glm::ivec2(-1, -2), glm::ivec2(0, -2) , glm::ivec2(1, -2) ,glm::ivec2(2, -2) };
+
+    glm::vec3 sum = glm::vec3(0.f);
+    glm::vec3 curr_pos = gBuffer[index].position;
+    glm::vec3 curr_nor = gBuffer[index].normal;
+    glm::vec3 curr_color = gBuffer[index].denoise_color;
+
+    float cum_w = 0.f;
+    float weight;
+    for (int i = 0; i < 25; i++) {
+        glm::ivec2 temp_cords = glm::ivec2(x, y);
+        temp_cords += offset[i] * step;
+        temp_cords.x = glm::clamp(temp_cords.x, 0, resolution.x - 1);
+        temp_cords.y = glm::clamp(temp_cords.y, 0, resolution.y - 1);
+        if (temp_cords.x < resolution.x && temp_cords.y < resolution.y) {
+            int temp_index = temp_cords.x + (temp_cords.y * resolution.x);
+
+            glm::vec3 temp_color = gBuffer[temp_index].denoise_color;
+            glm::vec3 t = curr_color - temp_color;
+            float dist2 = glm::dot(t, t);
+            float color_weight = glm::min(glm::exp(-dist2 / c_weight), 1.f);
+
+            glm::vec3 temp_nor = gBuffer[temp_index].normal;
+            t = curr_nor - temp_nor;
+            dist2 = glm::dot(t, t);
+            float nor_weight = glm::min(glm::exp(-dist2 / n_weight), 1.f);
+
+            glm::vec3 temp_pos = gBuffer[temp_index].position;
+            t = curr_pos - temp_pos;
+            dist2 = glm::dot(t, t);
+            float pos_weight = glm::min(glm::exp(-dist2 / p_weight), 1.f);
+
+
+#if WEIGHTS
+            weight =color_weight;
+            sum += temp_color * weight * kernel[i];
+            cum_w += weight * kernel[i];
+#else
+            sum += temp_color * kernel[i];
+            cum_w += kernel[i];
+#endif
+        }
+    }
+    gBuffer[index].updated_denoise_color = sum / cum_w;
+
+}
+
+__global__ void pingPongGbuffer(glm::ivec2 resolution, GBufferPixel* gBuffer) {
+    int x = (blockIdx.x * blockDim.x) + threadIdx.x;
+    int y = (blockIdx.y * blockDim.y) + threadIdx.y;
+    int index = x + (y * resolution.x);
+
+    if (x < resolution.x && y < resolution.y) {
+        gBuffer[index].denoise_color = gBuffer[index].updated_denoise_color;
+    }
+
+}
+
+void denoiseGbuffer(const dim3 blocksPerGrid2d, const dim3 blockSize2d, glm::ivec2 resolution, float c_weight, float p_weight, float n_weight, int logFilterSize, GBufferPixel* gBuffer) {
+    int step = 1;
+    for (int i = 0; i < logFilterSize; i++) {
+        denoiseIteration << <blocksPerGrid2d, blockSize2d >> > (step, c_weight, p_weight, n_weight, resolution, gBuffer);
+        pingPongGbuffer << <blocksPerGrid2d, blockSize2d >> > (resolution, gBuffer);
+        step *= 2;
+    }
+}
+
 
 static Scene * hst_scene = NULL;
 static glm::vec3 * dev_image = NULL;
@@ -247,7 +357,10 @@ __global__ void generateGBuffer(
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num_paths)
     {
-        gBuffer[idx].t = shadeableIntersections[idx].t;
+        float t = shadeableIntersections[idx].t;
+        gBuffer[idx].t = t;
+        gBuffer[idx].normal = shadeableIntersections[idx].surfaceNormal;
+        gBuffer[idx].position = pathSegments[idx].ray.origin + pathSegments[idx].ray.direction * t;
     }
 }
 
@@ -539,6 +652,27 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 	}
 }
 
+__global__ void pathToBuffer(GBufferPixel* gBuffer, int nPaths, glm::vec3* image, PathSegment* iterationPaths) {
+    int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+
+    if (index < nPaths)
+    {
+        PathSegment iterationPath = iterationPaths[index];
+        gBuffer[iterationPath.pixelIndex].denoise_color = iterationPath.color;
+    }
+}
+
+__global__ void finalGatherDeniose(GBufferPixel* gBuffer, int nPaths, glm::vec3* image, PathSegment* iterationPaths) {
+    int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+
+    if (index < nPaths)
+    {
+        PathSegment iterationPath = iterationPaths[index];
+        image[iterationPath.pixelIndex] += gBuffer[iterationPath.pixelIndex].denoise_color;
+    }
+}
+
+
 struct sortByMaterial {
     __host__ __device__ bool operator() (const ShadeableIntersection& a, const ShadeableIntersection& b){
         return a.materialId > b.materialId;
@@ -554,7 +688,7 @@ struct isTerminate {
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
  * of memory management
  */
-void pathtrace(uchar4 *pbo, int frame, int iter) {
+void pathtrace(int frame, int iter, bool denoise, int filterSize, float c_weight, float p_weight, float n_weight) {
     const int traceDepth = hst_scene->state.traceDepth;
     const Camera &cam = hst_scene->state.camera;
     const int pixelcount = cam.resolution.x * cam.resolution.y;
@@ -688,7 +822,14 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	}
     timer().endGpuTimer();
   // Assemble this iteration and apply it to the image
-	finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths_origin, dev_image, dev_paths);
+    if (true) {
+        pathToBuffer << <numBlocksPixels, blockSize1d >> > (dev_gBuffer, num_paths_origin, dev_image, dev_paths);
+        denoiseGbuffer(blocksPerGrid2d, blockSize2d, cam.resolution, c_weight, p_weight, n_weight, filterSize, dev_gBuffer);
+        finalGatherDeniose << <numBlocksPixels, blockSize1d >> > (dev_gBuffer, num_paths_origin, dev_image, dev_paths);
+    }
+    else {
+        finalGather << <numBlocksPixels, blockSize1d >> > (num_paths_origin, dev_image, dev_paths);
+    }
 
     ///////////////////////////////////////////////////////////////////////////
 #if !AI_DENOISE
@@ -727,6 +868,7 @@ void showGBuffer(uchar4* pbo) {
         (cam.resolution.x + blockSize2d.x - 1) / blockSize2d.x,
         (cam.resolution.y + blockSize2d.y - 1) / blockSize2d.y);
 
+    // CHECKITOUT: process the gbuffer results and send them to OpenGL buffer for visualization
     gbufferToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, dev_gBuffer);
 }
 
