@@ -129,14 +129,14 @@ __global__ void gbufferToPBO(uchar4* pbo, glm::ivec2 resolution, GBufferPixel* g
         pbo[index].y = timeToIntersect;
         pbo[index].z = timeToIntersect;*/
 
-        // visualize position
-        /*int index = x + (y * resolution.x);
+        //visualize position
+        int index = x + (y * resolution.x);
         glm::vec3 color = glm::clamp(glm::abs(gBuffer[index].position * 25.f), 0.f, 255.f);
         pbo[index].w = 0;
         pbo[index].x = color.x;
         pbo[index].y = color.y;
-        pbo[index].z = color.z;*/
-
+        pbo[index].z = color.z;
+        /*
         // visualize normal
         int index = x + (y * resolution.x);
         glm::vec3 color = glm::clamp(glm::abs(gBuffer[index].normal * 255.f), 0.f, 255.f);
@@ -144,7 +144,7 @@ __global__ void gbufferToPBO(uchar4* pbo, glm::ivec2 resolution, GBufferPixel* g
         pbo[index].w = 0;
         pbo[index].x = color.x;
         pbo[index].y = color.y;
-        pbo[index].z = color.z;
+        pbo[index].z = color.z;*/
     }
 }
 
@@ -204,7 +204,7 @@ __global__ void denoiseIteration(int step, float c_weight, float p_weight, float
 
 
 #if WEIGHTS
-            weight =color_weight;
+            weight =color_weight*nor_weight*pos_weight;
             sum += temp_color * weight * kernel[i];
             cum_w += weight * kernel[i];
 #else
@@ -355,12 +355,14 @@ __global__ void generateGBuffer(
     PathSegment* pathSegments,
     GBufferPixel* gBuffer) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    PathSegment pathsegment = pathSegments[idx];
     if (idx < num_paths)
     {
         float t = shadeableIntersections[idx].t;
-        gBuffer[idx].t = t;
-        gBuffer[idx].normal = shadeableIntersections[idx].surfaceNormal;
-        gBuffer[idx].position = pathSegments[idx].ray.origin + pathSegments[idx].ray.direction * t;
+        gBuffer[pathsegment.pixelIndex].t = t;
+        gBuffer[pathsegment.pixelIndex].normal = shadeableIntersections[idx].surfaceNormal;
+        gBuffer[pathsegment.pixelIndex].position = pathSegments[idx].ray.origin + pathSegments[idx].ray.direction * t;
     }
 }
 
