@@ -1,24 +1,18 @@
 # MyGPURaytracer
 A high performance raytracer programmed with CUDA.  The implementation of  the paper "[Edge-Avoiding A-Trous Wavelet Transform for fast Global Illumination Filtering](https://jo.dreggn.org/home/2010_atrous.pdf)".
 
-
+This branch conflicts with the master branch and should not be merged.
 
 
 ## Features
 
 * Monte Carlo based ray tracer on GPU;
-
 * BSDF Evaluation: pure diffuse, reflection and refraction, diffuse+specular;
-
 * Arbitrary .obj model file loading with its emissive, specular,diffuse,bumping textures;
-
 * Depth of field
-
 * GPU improvement: stream compaction
-
 * Cache first intersection
-
-  
+* Material sort
 
 ## Usage
 
