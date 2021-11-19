@@ -1,11 +1,7 @@
 # MyGPURaytracer
-A high performance raytracer programmed with CUDA. There are various improval features such as AI denoising, depth of field, arbitrary mesh loading. etc in it.  
-
-**Spaceship in cornell box**
+A high performance raytracer programmed with CUDA.  The implementation of  the paper "[Edge-Avoiding A-Trous Wavelet Transform for fast Global Illumination Filtering](https://jo.dreggn.org/home/2010_atrous.pdf)".
 
 
-![cornell 2021-11-17_12-17-06z 43output](https://user-images.githubusercontent.com/28896013/142200062-1871c9d9-30bb-4ceb-b0de-94bc274150d1.png)
-![cornell 2021-11-17_12-17-06z 54output](https://user-images.githubusercontent.com/28896013/142200029-cb983f46-7837-4cf0-ad72-b4b899c49ef5.png)
 
 
 ## Features
@@ -13,8 +9,6 @@ A high performance raytracer programmed with CUDA. There are various improval fe
 * Monte Carlo based ray tracer on GPU;
 
 * BSDF Evaluation: pure diffuse, reflection and refraction, diffuse+specular;
-
-* AI denoise implemented with [Intel Open Image Denoise](https://github.com/OpenImageDenoise/oidn);
 
 * Arbitrary .obj model file loading with its emissive, specular,diffuse,bumping textures;
 
@@ -24,13 +18,7 @@ A high performance raytracer programmed with CUDA. There are various improval fe
 
 * Cache first intersection
 
-   
-
-## TODO
-
-* [Wavefront pathtracing](https://research.nvidia.com/publication/megakernels-considered-harmful-wavefront-path-tracing-gpus) --group rays by material
-* Hierarchical spatial data structurs(BVH)--for massive scenes
-* Motion blur
+  
 
 ## Usage
 
