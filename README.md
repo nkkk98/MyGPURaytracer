@@ -3,6 +3,8 @@ A high performance raytracer programmed with CUDA.  The implementation of  the p
 
 This branch conflicts with the master branch and should not be merged.
 
+ceiling cornell box 
+![edgeAtrous](https://user-images.githubusercontent.com/28896013/142604845-8520b7fb-bc5e-40c6-ac03-ec737347251d.PNG)
 
 ## Features
 
