@@ -1,43 +1,62 @@
 # MyGPURaytracer
-A high performance raytracer programmed with CUDA. There are various improval features such as AI denoising, depth of field, arbitrary mesh loading. etc in it.  
+A high performance monte-carlo raytracer programmed with CUDA. There are various improval features such as AI denoising, cache first bounce, sort materials, arbitrary mesh loading. etc in it.  
 
-**Spaceship in cornell box**
+![obj](.\imgs\obj.png)
 
 
-![cornell 2021-11-17_12-17-06z 43output](https://user-images.githubusercontent.com/28896013/142200062-1871c9d9-30bb-4ceb-b0de-94bc274150d1.png)
-![cornell 2021-11-17_12-17-06z 54output](https://user-images.githubusercontent.com/28896013/142200029-cb983f46-7837-4cf0-ad72-b4b899c49ef5.png)
 
 
 ## Features
 
-* Monte Carlo based ray tracer on GPU;
+* Monte-Carlo ray tracer on GPU;
 
 * BSDF Evaluation: pure diffuse, reflection and refraction, diffuse+specular;
 
+  |         Purely Diffuse         |                Reflective                |
+  | :----------------------------: | :--------------------------------------: |
+  | ![diffuse](.\imgs\diffuse.png) |   ![reflection](.\imgs\reflection.png)   |
+  |         **Refractive**         |         **Diffuse & Reflective**         |
+  | ![refr](.\imgs\refraction.png) | ![diffuse&spec](.\imgs\diffuse&spec.png) |
+
+  
+
 * AI denoise implemented with [Intel Open Image Denoise](https://github.com/OpenImageDenoise/oidn);
 
-* Arbitrary .obj model file loading with its specular,diffuse,bumping textures;
+  Use albedo image as an auxiliary to reduce noise (oidnRayTraced.exe file output denoised result in real-time). 
+
+  |               Ray-traced noisy result                |                         Albedo                         |             Denoised Result              |
+  | :--------------------------------------------------: | :----------------------------------------------------: | :--------------------------------------: |
+  |         ![diffuse](.\imgs\diffuse_input.png)         |     ![diffuse_albedo ](.\imgs\diffuse_albedo .png)     |      ![diffuse](.\imgs\diffuse.png)      |
+  |      ![reflect_input](.\imgs\reflect_input.png)      |      ![reflect_albedo](.\imgs\reflect_albedo.png)      |   ![reflection](.\imgs\reflection.png)   |
+  |      ![refract_input](.\imgs\refract_input.png)      |      ![refract_albedo](.\imgs\refract_albedo.png)      |   ![refraction](.\imgs\refraction.png)   |
+  | ![diffuse&spec_input](.\imgs\diffuse&spec_input.png) | ![diffuse&spec_albedo](.\imgs\diffuse&spec_albedo.png) | ![diffuse&spec](.\imgs\diffuse&spec.png) |
+
+  
+
+* Use [tinyobj](https://github.com/syoyo/tinyobjloader) to load arbitrary .obj model with its specular,diffuse, emission and bumping textures;
+
+  
 
 * Depth of field
 
 * GPU improvement: stream compaction
 
 * Cache first intersection
-* Material sort
-* The implementation of the paper "Edge-Avoiding A-Trous Wavelet Transform for fast Global Illumination Filtering" is in [atrousDenoise](https://github.com/Chluuu/MyGPURaytracer/tree/atrousDenoise) branch 
 
-   
+* Stochastic Sampled Antialiasing
 
 ## TODO
 
+For massive scenes:
+
 * [Wavefront pathtracing](https://research.nvidia.com/publication/megakernels-considered-harmful-wavefront-path-tracing-gpus) --group rays by material
-* Hierarchical spatial data structurs(BVH)--for massive scenes
+* Hierarchical spatial data structurs(BVH)
 
 ## Usage
 
 Only support win32：
 
-Raytracer.exe directory/to/scene.txt
+oidnRaytracer.exe directory/to/scene.txt
 
 executable directory example:
 
@@ -46,13 +65,15 @@ executable directory example:
 	|--build
 	    |--bin
 		|--Release
-		    |--Raytracer.exe
+		    |--oidnRaytracer.exe
 		|--models
 		    |--materials
 			|--a.mtl
-		    |-- a.obj 
+		    |--a.obj 
 		|--textures
 		    |--a_kd.jpg
+		    |--a_ks.jpg
+		    |--a_emi.jpg
 ```
 
 

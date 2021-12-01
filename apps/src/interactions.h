@@ -233,7 +233,7 @@ void scatterRay(
                 diffuseColor = glm::vec3(colR / 255.f, colG / 255.f, colB / 255.f);
             }
             else diffuseColor = m.color;
-            pathSegment.color *= (diffuseColor)/3.1415926f;
+            pathSegment.color *= (diffuseColor);
             pathSegment.ray.direction = calculateRandomDirectionInHemisphere(intersection.surfaceNormal, rng);
             pathSegment.ray.origin = intersect + pathSegment.ray.direction * 0.01f;
         }
@@ -249,8 +249,9 @@ void scatterRay(
         {
             pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
         }
-#endif
+#else
         pathSegment.ray.direction = calculateRandomDirectionInHemisphere(intersection.surfaceNormal, rng);
+#endif
         pathSegment.ray.origin = intersect + pathSegment.ray.direction * 0.01f;
         pathSegment.color *= m.color;
     }
