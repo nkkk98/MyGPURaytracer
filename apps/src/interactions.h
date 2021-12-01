@@ -3,6 +3,7 @@
 #include "intersections.h"
 
 #define JITTERED_SAMPLING 0
+
 // CHECKITOUT
 /**
  * Computes a cosine-weighted random direction in a hemisphere.
@@ -232,7 +233,7 @@ void scatterRay(
                 diffuseColor = glm::vec3(colR / 255.f, colG / 255.f, colB / 255.f);
             }
             else diffuseColor = m.color;
-            pathSegment.color *= (diffuseColor);
+            pathSegment.color *= (diffuseColor)/3.1415926f;
             pathSegment.ray.direction = calculateRandomDirectionInHemisphere(intersection.surfaceNormal, rng);
             pathSegment.ray.origin = intersect + pathSegment.ray.direction * 0.01f;
         }

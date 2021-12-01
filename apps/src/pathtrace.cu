@@ -41,6 +41,8 @@ PerformanceTimer& timer()
 
 #define AI_DENOISE 1
 
+#define PI 3.14159265358f
+
 void checkCUDAErrorFn(const char *msg, const char *file, int line) {
 #if ERRORCHECK
     cudaDeviceSynchronize();
@@ -78,9 +80,9 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution,
         glm::vec3 pix = image[index];
 
         glm::ivec3 color;
-        color.x = glm::clamp((int) (pix.x / iter * 255.0), 0, 255);
-        color.y = glm::clamp((int) (pix.y / iter * 255.0), 0, 255);
-        color.z = glm::clamp((int) (pix.z / iter * 255.0), 0, 255);
+        color.x = glm::clamp((int) (pix.x  / iter * 255.0), 0, 255);
+        color.y = glm::clamp((int) (pix.y  / iter * 255.0), 0, 255);
+        color.z = glm::clamp((int) (pix.z  / iter * 255.0), 0, 255);
 
         // Each thread writes one pixel location in the texture (textel)
         pbo[index].w = 0;
@@ -101,9 +103,9 @@ __global__ void sendDenosiedImageToPBO(uchar4* pbo, glm::ivec2 resolution,
         glm::vec3 pix = image[index];
 
         glm::ivec3 color;
-        color.x = glm::clamp((int)(pix.x  * 255.0), 0, 255);
-        color.y = glm::clamp((int)(pix.y  * 255.0), 0, 255);
-        color.z = glm::clamp((int)(pix.z  * 255.0), 0, 255);
+        color.x = glm::clamp((int)(pix.x * 255.0), 0, 255);
+        color.y = glm::clamp((int)(pix.y * 255.0), 0, 255);
+        color.z = glm::clamp((int)(pix.z * 255.0), 0, 255);
 
         // Each thread writes one pixel location in the texture (textel)
         pbo[index].w = 0;
@@ -503,7 +505,7 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 	if (index < nPaths)
 	{
 		PathSegment iterationPath = iterationPaths[index];
-		image[iterationPath.pixelIndex] += iterationPath.color;
+		image[iterationPath.pixelIndex] += iterationPath.color * PI; //note to multiply pi when use cosine-weighted sampling method
 	}
 }
 
