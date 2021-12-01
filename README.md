@@ -23,6 +23,8 @@ A high performance raytracer programmed with CUDA. There are various improval fe
 * GPU improvement: stream compaction
 
 * Cache first intersection
+* Material sort
+* The implementation of the paper "Edge-Avoiding A-Trous Wavelet Transform for fast Global Illumination Filtering" is in [atrousDenoise](https://github.com/Chluuu/MyGPURaytracer/tree/atrousDenoise) branch 
 
    
 
