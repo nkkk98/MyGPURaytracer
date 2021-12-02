@@ -17,7 +17,7 @@ A high performance monte-carlo raytracer programmed with CUDA. There are various
   | :----------------------------: | :--------------------------------------: |
   | ![diffuse](https://user-images.githubusercontent.com/28896013/144418475-ad6a5ae4-2ad5-4b88-b5a9-a4f16257962e.png) |   ![reflection](https://user-images.githubusercontent.com/28896013/144418516-0c0c6ace-1a11-46d0-863b-e3eb9c7ef99a.png)   |
   |         **Refractive**         |         **Diffuse & Reflective**         |
-  | ![refraction](https://user-images.githubusercontent.com/28896013/144418547-c75cf9f6-258a-4347-83fb-818fb905b548.png) | !![diffuse spec](https://user-images.githubusercontent.com/28896013/144418575-7dd252b9-bb65-4427-a88c-df29e9fa3bf1.png) |
+  | ![refraction](https://user-images.githubusercontent.com/28896013/144418547-c75cf9f6-258a-4347-83fb-818fb905b548.png) | ![diffuse spec](https://user-images.githubusercontent.com/28896013/144418575-7dd252b9-bb65-4427-a88c-df29e9fa3bf1.png) |
 
   
 
