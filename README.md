@@ -50,7 +50,7 @@ A high performance monte-carlo raytracer programmed with CUDA. There are various
 For massive scenes:
 
 * [Wavefront pathtracing](https://research.nvidia.com/publication/megakernels-considered-harmful-wavefront-path-tracing-gpus) --group rays by material
-* Hierarchical spatial data structurs(BVH)
+* Hierarchical spatial data structures(BVH)
 
 ## Usage
 
@@ -75,8 +75,4 @@ executable directory example:
 		    |--a_ks.jpg
 		    |--a_emi.jpg
 ```
-
-
-
-Note: The project framework is referenced from CIS565 course lab.
 
