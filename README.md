@@ -42,7 +42,8 @@ A high performance monte-carlo raytracer programmed with CUDA. There are various
 
   | With Depth-of-Field | Without Depth-of-Field |
   | :-----------------: | :--------------------: |
-  | ![DOF](https://user-images.githubusercontent.com/28896013/146015776-922907b2-fe2c-4d04-b9fe-ae777caa5a23.png)|        |
+  | ![DOF](https://user-images.githubusercontent.com/28896013/146015776-922907b2-fe2c-4d04-b9fe-ae777caa5a23.png)|   ![refraction](https://user-images.githubusercontent.com/28896013/146016251-dbaf47e7-0732-46b4-ba3e-e70a4f9adcda.png)
+     |
 
   
 
