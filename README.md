@@ -36,9 +36,15 @@ A high performance monte-carlo raytracer programmed with CUDA. There are various
 
 * Use [tinyobj](https://github.com/syoyo/tinyobjloader) to load arbitrary .obj model with its specular,diffuse, emission and bumping textures;
 
-  
-
 * Depth of field
+
+  Focus on
+
+  | With Depth-of-Field | Without Depth-of-Field |
+  | :-----------------: | :--------------------: |
+  |                     |                        |
+
+  
 
 * GPU improvement: stream compaction
 
