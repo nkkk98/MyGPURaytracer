@@ -1,5 +1,5 @@
 # MyGPURaytracer
-A high performance monte-carlo raytracer programmed with CUDA. There are various improval features such as AI denoising, cache first bounce, sort materials, arbitrary mesh loading. etc in it.  
+A high performance monte-carlo raytracer programmed with CUDA. There are various improval features such as AI denoising, cache first bounce, sort materials, arbitrary mesh loading. etc in it.   The implementation of the paper "Edge-Avoiding A-Trous Wavelet Transform for fast Global Illumination Filtering" is in branch [atrous](https://github.com/Chluuu/MyGPURaytracer/tree/atrousDenoise) as it conflits with the AI denoise feature.
 
 ![obj](https://user-images.githubusercontent.com/28896013/144418444-ea196f8b-9dda-4874-b55d-6a8c6a2a4b94.png)
 
